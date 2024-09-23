@@ -57,8 +57,9 @@ impl Authenticated {
         server_guid: Option<OwnedGuid>,
         mechanisms: Option<VecDeque<AuthMechanism>>,
         bus: bool,
+        impersonate_user_id: Option<usize>,
     ) -> Result<Self> {
-        Client::new(socket, mechanisms, server_guid, bus)
+        Client::new(socket, mechanisms, server_guid, bus, impersonate_user_id)
             .perform()
             .await
     }

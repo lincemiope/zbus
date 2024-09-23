@@ -40,7 +40,7 @@ pub use socket::Socket;
 mod socket_reader;
 use socket_reader::SocketReader;
 
-pub(crate) mod handshake;
+pub mod handshake;
 use handshake::Authenticated;
 
 const DEFAULT_MAX_QUEUED: usize = 64;

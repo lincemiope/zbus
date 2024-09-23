@@ -72,6 +72,7 @@ pub struct Builder<'a> {
     unique_name: Option<crate::names::UniqueName<'a>>,
     cookie_context: Option<super::handshake::CookieContext<'a>>,
     cookie_id: Option<usize>,
+    impersonate_user_id: Option<usize>,
 }
 
 assert_impl_all!(Builder<'_>: Send, Sync, Unpin);
@@ -231,6 +232,12 @@ impl<'a> Builder<'a> {
         self
     }
 
+    /// Lets you impersonate a user
+    pub fn impersonate_user_id(mut self, id: usize) -> Self {
+        self.impersonate_user_id = Some(id);
+
+        self
+    }
     /// The to-be-created connection will be a peer-to-peer connection.
     ///
     /// This method is only available when the `p2p` feature is enabled.
@@ -417,8 +424,14 @@ impl<'a> Builder<'a> {
             match self.guid {
                 None => {
                     // SASL Handshake
-                    Authenticated::client(stream, server_guid, self.auth_mechanisms, is_bus_conn)
-                        .await?
+                    Authenticated::client(
+                        stream,
+                        server_guid,
+                        self.auth_mechanisms,
+                        is_bus_conn,
+                        self.impersonate_user_id,
+                    )
+                    .await?
                 }
                 Some(guid) => {
                     if !self.p2p {
@@ -448,7 +461,14 @@ impl<'a> Builder<'a> {
             }
 
             #[cfg(not(feature = "p2p"))]
-            Authenticated::client(stream, server_guid, self.auth_mechanisms, is_bus_conn).await?
+            Authenticated::client(
+                stream,
+                server_guid,
+                self.auth_mechanisms,
+                is_bus_conn,
+                self.impersonate_user_id,
+            )
+            .await?
         };
 
         // SAFETY: `Authenticated` is always built with these fields set to `Some`.
@@ -511,6 +531,7 @@ impl<'a> Builder<'a> {
             unique_name: None,
             cookie_id: None,
             cookie_context: None,
+            impersonate_user_id: None,
         }
     }
 

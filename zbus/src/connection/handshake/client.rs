@@ -20,6 +20,7 @@ pub struct Client {
     common: Common,
     server_guid: Option<OwnedGuid>,
     bus: bool,
+    user_id: Result<String>,
 }
 
 impl Client {
@@ -29,6 +30,7 @@ impl Client {
         mechanisms: Option<VecDeque<AuthMechanism>>,
         server_guid: Option<OwnedGuid>,
         bus: bool,
+        impersonate_user_id: Option<usize>,
     ) -> Client {
         let mechanisms = mechanisms.unwrap_or_else(|| {
             let mut mechanisms = VecDeque::new();
@@ -42,6 +44,10 @@ impl Client {
             common: Common::new(socket, mechanisms),
             server_guid,
             bus,
+            user_id: match impersonate_user_id {
+                Some(value) => Ok(value.to_string()),
+                None => sasl_auth_id(),
+            },
         }
     }
 
@@ -124,15 +130,17 @@ impl Client {
         loop {
             let mechanism = self.common.next_mechanism()?;
             trace!("Trying {mechanism} mechanism");
+
+            let user_id = self.user_id.clone();
+
             let auth_cmd = match mechanism {
                 AuthMechanism::Anonymous => Command::Auth(Some(mechanism), Some("zbus".into())),
                 AuthMechanism::External => {
-                    Command::Auth(Some(mechanism), Some(sasl_auth_id()?.into_bytes()))
+                    Command::Auth(Some(mechanism), Some(user_id?.into_bytes()))
                 }
-                AuthMechanism::Cookie => Command::Auth(
-                    Some(AuthMechanism::Cookie),
-                    Some(sasl_auth_id()?.into_bytes()),
-                ),
+                AuthMechanism::Cookie => {
+                    Command::Auth(Some(AuthMechanism::Cookie), Some(user_id?.into_bytes()))
+                }
             };
             self.common.write_command(auth_cmd).await?;
 
