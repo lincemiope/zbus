@@ -5,9 +5,11 @@ use std::{
     process::{Command, Stdio},
 };
 
-use zbus::names::BusName;
+use zbus::{
+    names::BusName,
+    zvariant::{ObjectPath, Signature},
+};
 use zbus_xml::{Arg, ArgDirection, Interface};
-use zvariant::{ObjectPath, Signature};
 
 pub fn write_interfaces(
     interfaces: &[Interface<'_>],
@@ -167,7 +169,7 @@ impl<'i> GenTrait<'i> {
             write!(w, ", assume_defaults = true")?;
         }
         writeln!(w, ")]")?;
-        writeln!(w, "trait {name} {{")?;
+        writeln!(w, "pub trait {name} {{")?;
 
         let mut methods = iface.methods().to_vec();
         methods.sort_by(|a, b| a.name().partial_cmp(&b.name()).unwrap());

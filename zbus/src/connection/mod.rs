@@ -8,7 +8,6 @@ use std::{
     collections::HashMap,
     io::{self, ErrorKind},
     num::NonZeroU32,
-    ops::Deref,
     pin::Pin,
     sync::{Arc, OnceLock, Weak},
     task::{Context, Poll},
@@ -22,7 +21,6 @@ use futures_util::StreamExt;
 
 use crate::{
     async_lock::{Mutex, Semaphore, SemaphorePermit},
-    blocking,
     fdo::{self, ConnectionCredentials, RequestNameFlags, RequestNameReply},
     is_flatpak,
     message::{Flags, Message, Type},
@@ -41,9 +39,8 @@ mod socket_reader;
 use socket_reader::SocketReader;
 
 pub mod handshake;
+pub use handshake::AuthMechanism;
 use handshake::Authenticated;
-
-mod connect;
 
 const DEFAULT_MAX_QUEUED: usize = 64;
 const DEFAULT_MAX_METHOD_RETURN_QUEUED: usize = 8;
@@ -75,7 +72,7 @@ pub(crate) struct ConnectionInner {
 
     subscriptions: Mutex<Subscriptions>,
 
-    object_server: OnceLock<blocking::ObjectServer>,
+    object_server: OnceLock<ObjectServer>,
     object_server_dispatch_task: OnceLock<Task<()>>,
 
     drop_event: Event,
@@ -374,7 +371,7 @@ impl Connection {
     {
         let _permit = acquire_serial_num_semaphore().await;
 
-        let mut builder = Message::method(path, method_name)?;
+        let mut builder = Message::method_call(path, method_name)?;
         if let Some(sender) = self.unique_name() {
             builder = builder.sender(sender)?
         }
@@ -445,13 +442,13 @@ impl Connection {
     ///
     /// Given an existing message (likely a method call), send a reply back to the caller with the
     /// given `body`.
-    pub async fn reply<B>(&self, call: &Message, body: &B) -> Result<()>
+    pub async fn reply<B>(&self, call: &zbus::message::Header<'_>, body: &B) -> Result<()>
     where
         B: serde::ser::Serialize + zvariant::DynamicType,
     {
         let _permit = acquire_serial_num_semaphore().await;
 
-        let mut b = Message::method_reply(call)?;
+        let mut b = Message::method_return(call)?;
         if let Some(sender) = self.unique_name() {
             b = b.sender(sender)?;
         }
@@ -463,7 +460,12 @@ impl Connection {
     ///
     /// Given an existing message (likely a method call), send an error reply back to the caller
     /// with the given `error_name` and `body`.
-    pub async fn reply_error<'e, E, B>(&self, call: &Message, error_name: E, body: &B) -> Result<()>
+    pub async fn reply_error<'e, E, B>(
+        &self,
+        call: &zbus::message::Header<'_>,
+        error_name: E,
+        body: &B,
+    ) -> Result<()>
     where
         B: serde::ser::Serialize + zvariant::DynamicType,
         E: TryInto<ErrorName<'e>>,
@@ -471,7 +473,7 @@ impl Connection {
     {
         let _permit = acquire_serial_num_semaphore().await;
 
-        let mut b = Message::method_error(call, error_name)?;
+        let mut b = Message::error(call, error_name)?;
         if let Some(sender) = self.unique_name() {
             b = b.sender(sender)?;
         }
@@ -907,41 +909,22 @@ impl Connection {
     /// **Note**: Once the `ObjectServer` is created, it will be replying to all method calls
     /// received on `self`. If you want to manually reply to method calls, do not use this
     /// method (or any of the `ObjectServer` related API).
-    pub fn object_server(&self) -> impl Deref<Target = ObjectServer> + '_ {
-        // FIXME: Maybe it makes sense after all to implement Deref<Target= ObjectServer> for
-        // crate::ObjectServer instead of this wrapper?
-        struct Wrapper<'a>(&'a blocking::ObjectServer);
-        impl<'a> Deref for Wrapper<'a> {
-            type Target = ObjectServer;
-
-            fn deref(&self) -> &Self::Target {
-                self.0.inner()
-            }
-        }
-
-        Wrapper(self.sync_object_server(true, None))
+    pub fn object_server(&self) -> &ObjectServer {
+        self.ensure_object_server(true)
     }
 
-    pub(crate) fn sync_object_server(
-        &self,
-        start: bool,
-        started_event: Option<Event>,
-    ) -> &blocking::ObjectServer {
+    pub(crate) fn ensure_object_server(&self, start: bool) -> &ObjectServer {
         self.inner
             .object_server
-            .get_or_init(move || self.setup_object_server(start, started_event))
+            .get_or_init(move || self.setup_object_server(start, None))
     }
 
-    fn setup_object_server(
-        &self,
-        start: bool,
-        started_event: Option<Event>,
-    ) -> blocking::ObjectServer {
+    fn setup_object_server(&self, start: bool, started_event: Option<Event>) -> ObjectServer {
         if start {
             self.start_object_server(started_event);
         }
 
-        blocking::ObjectServer::new(self)
+        ObjectServer::new(self)
     }
 
     #[instrument(skip(self))]
@@ -1319,6 +1302,7 @@ impl Connection {
     }
 }
 
+#[cfg(feature = "blocking-api")]
 impl From<crate::blocking::Connection> for Connection {
     fn from(conn: crate::blocking::Connection) -> Self {
         conn.into_inner()
@@ -1326,7 +1310,7 @@ impl From<crate::blocking::Connection> for Connection {
 }
 
 // Internal API that allows keeping a weak connection ref around.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct WeakConnection {
     inner: Weak<ConnectionInner>,
 }
@@ -1375,6 +1359,28 @@ mod tests {
     use ntest::timeout;
     use std::{pin::pin, time::Duration};
     use test_log::test;
+
+    #[cfg(windows)]
+    #[test]
+    fn connect_autolaunch_session_bus() {
+        let addr =
+            crate::win32::autolaunch_bus_address().expect("Unable to get session bus address");
+
+        crate::block_on(async { addr.connect().await }).expect("Unable to connect to session bus");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn connect_launchd_session_bus() {
+        use crate::address::{transport::Launchd, Address, Transport};
+        crate::block_on(async {
+            let addr = Address::from(Transport::Launchd(Launchd::new(
+                "DBUS_LAUNCHD_SESSION_BUS_SOCKET",
+            )));
+            addr.connect().await
+        })
+        .expect("Unable to connect to session bus");
+    }
 
     #[test]
     #[timeout(15000)]
@@ -1523,7 +1529,7 @@ mod p2p_tests {
     use test_log::test;
     use zvariant::{Endian, NATIVE_ENDIAN};
 
-    use crate::{AuthMechanism, Guid};
+    use crate::{conn::AuthMechanism, Guid};
 
     use super::*;
 
@@ -1577,7 +1583,7 @@ mod p2p_tests {
             server2
                 .emit_signal(None::<()>, "/", "org.zbus.p2p", "ASignalForYou", &())
                 .await?;
-            server2.reply(&method, &("yay")).await?;
+            server2.reply(&method.header(), &("yay")).await?;
             client_done_listener.await;
 
             Ok(())
@@ -1593,7 +1599,7 @@ mod p2p_tests {
                 Endian::Little => Endian::Big,
                 Endian::Big => Endian::Little,
             };
-            let method = Message::method("/", "Test")?
+            let method = Message::method_call("/", "Test")?
                 .interface("org.zbus.p2p")?
                 .endian(endian)
                 .build(&64u64)?;
@@ -1722,7 +1728,7 @@ mod p2p_tests {
         #[cfg(all(feature = "vsock", not(feature = "tokio")))]
         let listener = vsock::VsockListener::bind_with_cid_port(vsock::VMADDR_CID_LOCAL, u32::MAX)?;
         #[cfg(feature = "tokio-vsock")]
-        let listener = tokio_vsock::VsockListener::bind(1, u32::MAX)?;
+        let listener = tokio_vsock::VsockListener::bind(tokio_vsock::VsockAddr::new(1, u32::MAX))?;
 
         let addr = listener.local_addr()?;
         let addr = format!("vsock:cid={},port={},guid={guid}", addr.cid(), addr.port());
@@ -1791,13 +1797,13 @@ mod p2p_tests {
 
     #[cfg(feature = "tokio-vsock")]
     async fn vsock_p2p_pipe() -> Result<(Connection, Connection)> {
+        use tokio_vsock::VsockAddr;
+
         let guid = Guid::generate();
 
-        let listener = tokio_vsock::VsockListener::bind(1, u32::MAX).unwrap();
+        let listener = tokio_vsock::VsockListener::bind(VsockAddr::new(1, u32::MAX)).unwrap();
         let addr = listener.local_addr().unwrap();
-        let client = tokio_vsock::VsockStream::connect(addr.cid(), addr.port())
-            .await
-            .unwrap();
+        let client = tokio_vsock::VsockStream::connect(addr).await.unwrap();
         let server = listener.incoming().next().await.unwrap().unwrap();
 
         futures_util::try_join!(
@@ -1809,83 +1815,6 @@ mod p2p_tests {
                 .build(),
             Builder::vsock_stream(client).p2p().build(),
         )
-    }
-
-    #[cfg(any(unix, not(feature = "tokio")))]
-    #[test]
-    #[timeout(15000)]
-    fn unix_p2p_cookie_auth() {
-        use crate::utils::block_on;
-        use std::{
-            fs::{create_dir_all, remove_file, write},
-            time::{SystemTime as Time, UNIX_EPOCH},
-        };
-        #[cfg(unix)]
-        use std::{
-            fs::{set_permissions, Permissions},
-            os::unix::fs::PermissionsExt,
-        };
-        use xdg_home::home_dir;
-
-        let cookie_context = "zbus-test-cookie-context";
-        let cookie_id = 123456789;
-        let cookie = hex::encode(b"our cookie");
-
-        // Ensure cookie directory exists.
-        let cookie_dir = home_dir().unwrap().join(".dbus-keyrings");
-        create_dir_all(&cookie_dir).unwrap();
-        #[cfg(unix)]
-        set_permissions(&cookie_dir, Permissions::from_mode(0o700)).unwrap();
-
-        // Create a cookie file.
-        let cookie_file = cookie_dir.join(cookie_context);
-        let ts = Time::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        let cookie_entry = format!("{cookie_id} {ts} {cookie}");
-        write(&cookie_file, cookie_entry).unwrap();
-
-        // Explicit cookie ID.
-        let res1 = block_on(test_unix_p2p_cookie_auth(cookie_context, Some(cookie_id)));
-        // Implicit cookie ID (first one should be picked).
-        let res2 = block_on(test_unix_p2p_cookie_auth(cookie_context, None));
-
-        // Remove the cookie file.
-        remove_file(&cookie_file).unwrap();
-
-        res1.unwrap();
-        res2.unwrap();
-    }
-
-    #[cfg(any(unix, not(feature = "tokio")))]
-    async fn test_unix_p2p_cookie_auth(
-        cookie_context: &'static str,
-        cookie_id: Option<usize>,
-    ) -> Result<()> {
-        #[cfg(all(unix, not(feature = "tokio")))]
-        use std::os::unix::net::UnixStream;
-        #[cfg(all(unix, feature = "tokio"))]
-        use tokio::net::UnixStream;
-        #[cfg(all(windows, not(feature = "tokio")))]
-        use uds_windows::UnixStream;
-
-        let guid = Guid::generate();
-
-        let (p0, p1) = UnixStream::pair().unwrap();
-        let mut server_builder = Builder::unix_stream(p0)
-            .server(guid)
-            .unwrap()
-            .p2p()
-            .auth_mechanism(AuthMechanism::Cookie)
-            .cookie_context(cookie_context)
-            .unwrap();
-        if let Some(cookie_id) = cookie_id {
-            server_builder = server_builder.cookie_id(cookie_id);
-        }
-
-        futures_util::try_join!(
-            Builder::unix_stream(p1).p2p().build(),
-            server_builder.build(),
-        )
-        .map(|_| ())
     }
 
     #[test]
