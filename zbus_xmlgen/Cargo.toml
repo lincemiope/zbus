@@ -1,6 +1,6 @@
 [package]
 name = "zbus_xmlgen"
-version = "4.1.0"
+version = "5.0.0"
 authors = [
     "Bilal Elmoussaoui <bil.elmoussaoui@gmail.com>",
     "Federico Mena Quintero <federico@gnome.org>",
@@ -10,7 +10,7 @@ authors = [
     "Zeeshan Ali Khan <zeeshanak@gnome.org>",
 ]
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.81"
 
 description = "D-Bus XML interface code generator"
 repository = "https://github.com/dbus2/zbus/"
@@ -25,9 +25,8 @@ name = "zbus-xmlgen"
 path = "src/main.rs"
 
 [dependencies]
-zbus = { path = "../zbus", version = "4.0.0" }
-zbus_xml = { path = "../zbus_xml", version = "4.0.0" }
-zvariant = { path = "../zvariant", version = "4" }
+zbus = { path = "../zbus", version = "5.0.0", features = ["blocking-api"] }
+zbus_xml = { path = "../zbus_xml", version = "5.0.0" }
 snakecase = "0.1.0"
 clap = { version = "4.5.4", features = ["derive", "wrap_help"] }
 

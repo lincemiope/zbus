@@ -144,7 +144,7 @@ impl MyIface {
         #[zbus(header)] header: Header<'_>,
     ) -> zbus::fdo::Result<()> {
         debug!("`TestSingleStructArg` called.");
-        assert_eq!(header.signature().unwrap(), "(is)");
+        assert_eq!(header.signature(), "(is)");
         assert_eq!(arg.foo, 1);
         assert_eq!(arg.bar, "TestString");
 
@@ -480,7 +480,7 @@ async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> {
     // Use low-level API for `TestResponseNotify` because we need to ensure that the signal is
     // always received after the response.
     let mut stream = MessageStream::from(&conn);
-    let method = Message::method("/org/freedesktop/MyService", "TestResponseNotify")?
+    let method = Message::method_call("/org/freedesktop/MyService", "TestResponseNotify")?
         .interface("org.freedesktop.MyIface")?
         .destination("org.freedesktop.MyService")?
         .build(&())?;
@@ -727,7 +727,7 @@ async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> {
 
     let args = ifaces_removed.args()?;
     assert_eq!(args.object_path(), "/zbus/test/MyObj");
-    assert_eq!(args.interfaces(), &["org.freedesktop.MyIface"]);
+    assert_eq!(args.interfaces().as_ref(), &["org.freedesktop.MyIface"]);
 
     assert!(my_obj_proxy.inner().introspect().await.is_err());
     assert!(my_obj_proxy.ping().await.is_err());

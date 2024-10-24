@@ -10,13 +10,13 @@ use tokio::net::UnixStream;
 #[cfg(all(windows, not(feature = "tokio")))]
 use uds_windows::UnixStream;
 
-use zvariant::{ObjectPath, Str};
+use zvariant::ObjectPath;
 
 #[cfg(feature = "p2p")]
 use crate::Guid;
 use crate::{
-    address::ToAddresses, blocking::Connection, connection::socket::BoxedSplit,
-    names::WellKnownName, object_server::Interface, utils::block_on, AuthMechanism, Error, Result,
+    address::Address, blocking::Connection, conn::AuthMechanism, connection::socket::BoxedSplit,
+    names::WellKnownName, object_server::Interface, utils::block_on, Error, Result,
 };
 
 /// A builder for [`zbus::blocking::Connection`].
@@ -40,9 +40,10 @@ impl<'a> Builder<'a> {
     /// Create a builder for a connection that will use the given [D-Bus bus address].
     ///
     /// [D-Bus bus address]: https://dbus.freedesktop.org/doc/dbus-specification.html#addresses
-    pub fn address<'t, A>(address: &'t A) -> Result<Self>
+    pub fn address<A>(address: A) -> Result<Self>
     where
-        A: ToAddresses<'t> + ?Sized,
+        A: TryInto<Address>,
+        A::Error: Into<Error>,
     {
         crate::connection::Builder::address(address).map(Self)
     }
@@ -92,40 +93,6 @@ impl<'a> Builder<'a> {
     /// Specify the mechanism to use during authentication.
     pub fn auth_mechanism(self, auth_mechanism: AuthMechanism) -> Self {
         Self(self.0.auth_mechanism(auth_mechanism))
-    }
-
-    /// Specify the mechanisms to use during authentication.
-    #[deprecated(since = "4.1.3", note = "Use `auth_mechanism` instead.")]
-    pub fn auth_mechanisms(self, auth_mechanisms: &[AuthMechanism]) -> Self {
-        #[allow(deprecated)]
-        Self(self.0.auth_mechanisms(auth_mechanisms))
-    }
-
-    /// The cookie context to use during authentication.
-    ///
-    /// This is only used when the `cookie` authentication mechanism is enabled and only valid for
-    /// server connections.
-    ///
-    /// If not specified, the default cookie context of `org_freedesktop_general` will be used.
-    ///
-    /// # Errors
-    ///
-    /// If the given string is not a valid cookie context.
-    pub fn cookie_context<C>(self, context: C) -> Result<Self>
-    where
-        C: Into<Str<'a>>,
-    {
-        self.0.cookie_context(context).map(Self)
-    }
-
-    /// The ID of the cookie to use during authentication.
-    ///
-    /// This is only used when the `cookie` authentication mechanism is enabled and only valid for
-    /// server connections.
-    ///
-    /// If not specified, the first cookie found in the cookie context file will be used.
-    pub fn cookie_id(self, id: usize) -> Self {
-        Self(self.0.cookie_id(id))
     }
 
     /// The to-be-created connection will be a peer-to-peer connection.

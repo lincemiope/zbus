@@ -24,6 +24,7 @@ mod doctests {
     doc_comment::doctest!("../../book/src/contributors.md");
     doc_comment::doctest!("../../book/src/introduction.md");
     doc_comment::doctest!("../../book/src/service.md");
+    #[cfg(feature = "blocking-api")]
     doc_comment::doctest!("../../book/src/blocking.md");
     doc_comment::doctest!("../../book/src/faq.md");
 }
@@ -58,7 +59,12 @@ pub use message::Message;
 pub mod connection;
 /// Alias for `connection` module, for convenience.
 pub use connection as conn;
-pub use connection::{handshake::AuthMechanism, Connection};
+#[deprecated(
+    since = "5.0.0",
+    note = "Please use `connection::AuthMechanism` instead"
+)]
+pub use connection::handshake::AuthMechanism;
+pub use connection::Connection;
 
 mod message_stream;
 pub use message_stream::*;
@@ -80,6 +86,7 @@ pub use utils::*;
 #[macro_use]
 pub mod fdo;
 
+#[cfg(feature = "blocking-api")]
 pub mod blocking;
 
 pub use zbus_macros::{interface, proxy, DBusError};

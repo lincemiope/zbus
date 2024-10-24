@@ -51,7 +51,7 @@ where
     T: ?Sized + Serialize + DynamicType,
 {
     let mut null = NullWriteSeek;
-    let signature = value.dynamic_signature();
+    let signature = value.signature();
     #[cfg(unix)]
     let mut fds = FdList::Number(0);
 
@@ -116,14 +116,12 @@ where
 ///
 /// On non-Unix systems, the returned [`Written`] instance will not contain any file descriptors and
 /// hence is safe to drop.
-///
-/// [`to_writer_fds`]: fn.to_writer_fds.html
 pub unsafe fn to_writer<W, T>(writer: &mut W, ctxt: Context, value: &T) -> Result<Written>
 where
     W: Write + Seek,
     T: ?Sized + Serialize + DynamicType,
 {
-    let signature = value.dynamic_signature();
+    let signature = value.signature();
 
     to_writer_for_signature(writer, ctxt, signature, value)
 }
@@ -135,7 +133,7 @@ pub fn to_bytes<T>(ctxt: Context, value: &T) -> Result<Data<'static, 'static>>
 where
     T: ?Sized + Serialize + DynamicType,
 {
-    to_bytes_for_signature(ctxt, value.dynamic_signature(), value)
+    to_bytes_for_signature(ctxt, value.signature(), value)
 }
 
 /// Serialize `T` that has the given signature, to the given `writer`.
@@ -320,10 +318,8 @@ where
 {
     /// Write `buf` and increment internal bytes written counter.
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.writer.write(buf).map(|n| {
+        self.writer.write(buf).inspect(|&n| {
             self.bytes_written += n;
-
-            n
         })
     }
 
