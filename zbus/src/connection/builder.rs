@@ -7,7 +7,7 @@ use std::net::TcpStream;
 #[cfg(all(unix, not(feature = "tokio")))]
 use std::os::unix::net::UnixStream;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     vec,
 };
 #[cfg(feature = "tokio")]
@@ -21,17 +21,16 @@ use uds_windows::UnixStream;
 #[cfg(all(feature = "vsock", not(feature = "tokio")))]
 use vsock::VsockStream;
 
-use zvariant::{ObjectPath, Str};
+use zvariant::ObjectPath;
 
 use crate::{
-    address::{Address, ToAddresses},
+    address::{self, Address},
     names::{InterfaceName, WellKnownName},
     object_server::{ArcInterface, Interface},
     Connection, Error, Executor, Guid, OwnedGuid, Result,
 };
 
 use super::{
-    connect::connect_address,
     handshake::{AuthMechanism, Authenticated},
     socket::{BoxedSplit, ReadHalf, Split, WriteHalf},
 };
@@ -48,7 +47,7 @@ enum Target {
         feature = "tokio-vsock"
     ))]
     VsockStream(VsockStream),
-    Address(Vec<Address<'static>>),
+    Address(Address),
     Socket(Split<Box<dyn ReadHalf>, Box<dyn WriteHalf>>),
     AuthenticatedSocket(Split<Box<dyn ReadHalf>, Box<dyn WriteHalf>>),
 }
@@ -68,11 +67,9 @@ pub struct Builder<'a> {
     internal_executor: bool,
     interfaces: Interfaces<'a>,
     names: HashSet<WellKnownName<'a>>,
-    auth_mechanisms: Option<VecDeque<AuthMechanism>>,
+    auth_mechanism: Option<AuthMechanism>,
     #[cfg(feature = "bus-impl")]
     unique_name: Option<crate::names::UniqueName<'a>>,
-    cookie_context: Option<super::handshake::CookieContext<'a>>,
-    cookie_id: Option<usize>,
     impersonate_user_id: Option<usize>,
 }
 
@@ -81,12 +78,12 @@ assert_impl_all!(Builder<'_>: Send, Sync, Unpin);
 impl<'a> Builder<'a> {
     /// Create a builder for the session/user message bus connection.
     pub fn session() -> Result<Self> {
-        Self::address(&crate::address::session()?)
+        Ok(Self::new(Target::Address(Address::session()?)))
     }
 
     /// Create a builder for the system-wide message bus connection.
     pub fn system() -> Result<Self> {
-        Self::address(&crate::address::system()?)
+        Ok(Self::new(Target::Address(Address::system()?)))
     }
 
     /// Create a builder for a connection that will use the given [D-Bus bus address].
@@ -120,17 +117,14 @@ impl<'a> Builder<'a> {
     /// current session using `ibus address` command.
     ///
     /// [D-Bus bus address]: https://dbus.freedesktop.org/doc/dbus-specification.html#addresses
-    pub fn address<'t, A>(address: &'t A) -> Result<Self>
+    pub fn address<A>(address: A) -> Result<Self>
     where
-        A: ToAddresses<'t> + ?Sized,
+        A: TryInto<Address>,
+        A::Error: Into<Error>,
     {
-        let addr = address
-            .to_addresses()
-            .filter_map(std::result::Result::ok)
-            .map(|a| a.to_owned())
-            .collect();
-
-        Ok(Builder::new(Target::Address(addr)))
+        Ok(Self::new(Target::Address(
+            address.try_into().map_err(Into::into)?,
+        )))
     }
 
     /// Create a builder for a connection that will use the given unix stream.
@@ -192,46 +186,8 @@ impl<'a> Builder<'a> {
     }
 
     /// Specify the mechanism to use during authentication.
-    pub fn auth_mechanism(self, auth_mechanism: AuthMechanism) -> Self {
-        #[allow(deprecated)]
-        self.auth_mechanisms(&[auth_mechanism])
-    }
-
-    /// Specify the mechanisms to use during authentication.
-    #[deprecated(since = "4.1.3", note = "Use `auth_mechanism` instead.")]
-    pub fn auth_mechanisms(mut self, auth_mechanisms: &[AuthMechanism]) -> Self {
-        self.auth_mechanisms = Some(VecDeque::from(auth_mechanisms.to_vec()));
-
-        self
-    }
-
-    /// The cookie context to use during authentication.
-    ///
-    /// This is only used when the `cookie` authentication mechanism is enabled and only valid for
-    /// server connections.
-    ///
-    /// If not specified, the default cookie context of `org_freedesktop_general` will be used.
-    ///
-    /// # Errors
-    ///
-    /// If the given string is not a valid cookie context.
-    pub fn cookie_context<C>(mut self, context: C) -> Result<Self>
-    where
-        C: Into<Str<'a>>,
-    {
-        self.cookie_context = Some(context.into().try_into()?);
-
-        Ok(self)
-    }
-
-    /// The ID of the cookie to use during authentication.
-    ///
-    /// This is only used when the `cookie` authentication mechanism is enabled and only valid for
-    /// server connections.
-    ///
-    /// If not specified, the first cookie found in the cookie context file will be used.
-    pub fn cookie_id(mut self, id: usize) -> Self {
-        self.cookie_id = Some(id);
+    pub fn auth_mechanism(mut self, auth_mechanism: AuthMechanism) -> Self {
+        self.auth_mechanism = Some(auth_mechanism);
 
         self
     }
@@ -431,7 +387,7 @@ impl<'a> Builder<'a> {
                     Authenticated::client(
                         stream,
                         server_guid,
-                        self.auth_mechanisms,
+                        self.auth_mechanism,
                         is_bus_conn,
                         self.impersonate_user_id,
                     )
@@ -455,9 +411,7 @@ impl<'a> Builder<'a> {
                         client_uid,
                         #[cfg(windows)]
                         client_sid,
-                        self.auth_mechanisms,
-                        self.cookie_id,
-                        self.cookie_context.unwrap_or_default(),
+                        self.auth_mechanism,
                         unique_name,
                     )
                     .await?
@@ -468,7 +422,7 @@ impl<'a> Builder<'a> {
             Authenticated::client(
                 stream,
                 server_guid,
-                self.auth_mechanisms,
+                self.auth_mechanism,
                 is_bus_conn,
                 self.impersonate_user_id,
             )
@@ -485,11 +439,10 @@ impl<'a> Builder<'a> {
         conn.set_max_queued(self.max_queued.unwrap_or(DEFAULT_MAX_QUEUED));
 
         if !self.interfaces.is_empty() {
-            let object_server = conn.sync_object_server(false, None);
+            let object_server = conn.ensure_object_server(false);
             for (path, interfaces) in self.interfaces {
                 for (name, iface) in interfaces {
                     let added = object_server
-                        .inner()
                         .add_arc_interface(path.clone(), name.clone(), iface.clone())
                         .await?;
                     if !added {
@@ -530,11 +483,9 @@ impl<'a> Builder<'a> {
             internal_executor: true,
             interfaces: HashMap::new(),
             names: HashSet::new(),
-            auth_mechanisms: None,
+            auth_mechanism: None,
             #[cfg(feature = "bus-impl")]
             unique_name: None,
-            cookie_id: None,
-            cookie_context: None,
             impersonate_user_id: None,
         }
     }
@@ -558,9 +509,19 @@ impl<'a> Builder<'a> {
             #[cfg(feature = "tokio-vsock")]
             Target::VsockStream(stream) => stream.into(),
             Target::Address(address) => {
-                return connect_address(&address)
-                    .await
-                    .map(|(split, guid)| (split, guid, false));
+                guid = address.guid().map(|g| g.to_owned().into());
+                match address.connect().await? {
+                    #[cfg(any(unix, not(feature = "tokio")))]
+                    address::transport::Stream::Unix(stream) => stream.into(),
+                    #[cfg(unix)]
+                    address::transport::Stream::Unixexec(stream) => stream.into(),
+                    address::transport::Stream::Tcp(stream) => stream.into(),
+                    #[cfg(any(
+                        all(feature = "vsock", not(feature = "tokio")),
+                        feature = "tokio-vsock"
+                    ))]
+                    address::transport::Stream::Vsock(stream) => stream.into(),
+                }
             }
             Target::Socket(stream) => stream,
             Target::AuthenticatedSocket(stream) => {

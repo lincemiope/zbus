@@ -1,13 +1,3 @@
-#[cfg(all(feature = "vsock", not(feature = "tokio")))]
-#[cfg(not(feature = "tokio"))]
-use async_io::Async;
-
-#[cfg(any(
-    all(feature = "vsock", not(feature = "tokio")),
-    feature = "tokio-vsock"
-))]
-use crate::{Error, Result};
-
 #[cfg(feature = "tokio-vsock")]
 use super::{Socket, Split};
 
@@ -25,6 +15,10 @@ impl super::ReadHalf for std::sync::Arc<async_io::Async<vsock::VsockStream>> {
                 Ok(ret)
             }
         }
+    }
+
+    fn auth_mechanism(&self) -> crate::AuthMechanism {
+        crate::AuthMechanism::Anonymous
     }
 }
 
@@ -61,11 +55,11 @@ impl super::WriteHalf for std::sync::Arc<async_io::Async<vsock::VsockStream>> {
 
 #[cfg(feature = "tokio-vsock")]
 impl Socket for tokio_vsock::VsockStream {
-    type ReadHalf = tokio_vsock::ReadHalf;
-    type WriteHalf = tokio_vsock::WriteHalf;
+    type ReadHalf = tokio_vsock::OwnedReadHalf;
+    type WriteHalf = tokio_vsock::OwnedWriteHalf;
 
     fn split(self) -> Split<Self::ReadHalf, Self::WriteHalf> {
-        let (read, write) = self.split();
+        let (read, write) = self.into_split();
 
         Split { read, write }
     }
@@ -73,7 +67,7 @@ impl Socket for tokio_vsock::VsockStream {
 
 #[cfg(feature = "tokio-vsock")]
 #[async_trait::async_trait]
-impl super::ReadHalf for tokio_vsock::ReadHalf {
+impl super::ReadHalf for tokio_vsock::OwnedReadHalf {
     async fn recvmsg(&mut self, buf: &mut [u8]) -> super::RecvmsgResult {
         use tokio::io::{AsyncReadExt, ReadBuf};
 
@@ -86,11 +80,15 @@ impl super::ReadHalf for tokio_vsock::ReadHalf {
             ret
         })
     }
+
+    fn auth_mechanism(&self) -> crate::conn::AuthMechanism {
+        crate::conn::AuthMechanism::Anonymous
+    }
 }
 
 #[cfg(feature = "tokio-vsock")]
 #[async_trait::async_trait]
-impl super::WriteHalf for tokio_vsock::WriteHalf {
+impl super::WriteHalf for tokio_vsock::OwnedWriteHalf {
     async fn sendmsg(
         &mut self,
         buf: &[u8],
@@ -113,38 +111,4 @@ impl super::WriteHalf for tokio_vsock::WriteHalf {
     async fn close(&mut self) -> std::io::Result<()> {
         tokio::io::AsyncWriteExt::shutdown(self).await
     }
-}
-
-#[cfg(all(feature = "vsock", not(feature = "tokio")))]
-type Stream = Async<vsock::VsockStream>;
-#[cfg(feature = "tokio-vsock")]
-type Stream = tokio_vsock::VsockStream;
-
-#[cfg(any(
-    all(feature = "vsock", not(feature = "tokio")),
-    feature = "tokio-vsock"
-))]
-pub(crate) async fn connect(addr: &crate::address::transport::Vsock<'_>) -> Result<Stream> {
-    let Some(cid) = addr.cid() else {
-        return Err(Error::Address("No cid in address".into()));
-    };
-    let Some(port) = addr.port() else {
-        return Err(Error::Address("No port in address".into()));
-    };
-
-    #[cfg(all(feature = "vsock", not(feature = "tokio")))]
-    {
-        let stream = crate::Task::spawn_blocking(
-            move || vsock::VsockStream::connect_with_cid_port(cid, port),
-            "connect vsock",
-        )
-        .await
-        .map_err(|e| Error::Address(format!("Failed to connect: {e}")))?;
-        Ok(Async::new(stream).map_err(|e| Error::InputOutput(e.into()))?)
-    }
-
-    #[cfg(feature = "tokio-vsock")]
-    Stream::connect(cid, port)
-        .await
-        .map_err(|e| Error::InputOutput(e.into()))
 }

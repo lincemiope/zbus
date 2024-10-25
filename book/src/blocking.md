@@ -11,6 +11,10 @@ in panics and hangs. This is not a limitation of zbus but rather a
 [well-known general problem][wkgp] in the Rust async/await world. The [`blocking` crate],
 [`async-std`][assb] and [`tokio`][tsb] crates provide a easy way around this problem.
 
+**Note:** Since zbus 5.0, blocking API can be disabled through the `blocking-api` cargo feature. If
+you use this API, make sure you are not unintentionally disabling it by disabling the default
+features in your `Cargo.toml`.
+
 ## Establishing a connection
 
 The only difference to that of [asynchronous `Connection` API] is that you use
@@ -199,10 +203,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
-[asynchronous `Connection` API]: https://docs.rs/zbus/4/zbus/connection/struct.Connection.html
-[`blocking::Connection`]: https://docs.rs/zbus/4/zbus/blocking/connection/struct.Connection.html
+[asynchronous `Connection` API]: https://docs.rs/zbus/5/zbus/connection/struct.Connection.html
+[`blocking::Connection`]: https://docs.rs/zbus/5/zbus/blocking/connection/struct.Connection.html
 [`std::iter::Iterator`]: https://doc.rust-lang.org/nightly/std/iter/trait.Iterator.html
-[blocking module]: https://docs.rs/zbus/4/zbus/blocking/index.html
+[blocking module]: https://docs.rs/zbus/5/zbus/blocking/index.html
 [wkgp]: https://rust-lang.github.io/wg-async-foundations/vision/shiny_future/users_manual.html#caveat-beware-the-async-sandwich
 [`blocking` crate]: https://docs.rs/blocking/
 [assb]: https://docs.rs/async-std/4/async_std/task/fn.spawn_blocking.html

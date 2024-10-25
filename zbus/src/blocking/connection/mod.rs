@@ -128,7 +128,7 @@ impl Connection {
     ///
     /// Given an existing message (likely a method call), send a reply back to the caller with the
     /// given `body`.
-    pub fn reply<B>(&self, call: &Message, body: &B) -> Result<()>
+    pub fn reply<B>(&self, call: &zbus::message::Header<'_>, body: &B) -> Result<()>
     where
         B: serde::ser::Serialize + zvariant::DynamicType,
     {
@@ -141,7 +141,12 @@ impl Connection {
     /// with the given `error_name` and `body`.
     ///
     /// Returns the message serial number.
-    pub fn reply_error<'e, E, B>(&self, call: &Message, error_name: E, body: &B) -> Result<()>
+    pub fn reply_error<'e, E, B>(
+        &self,
+        call: &zbus::message::Header<'_>,
+        error_name: E,
+        body: &B,
+    ) -> Result<()>
     where
         B: serde::ser::Serialize + zvariant::DynamicType,
         E: TryInto<ErrorName<'e>>,
@@ -219,7 +224,16 @@ impl Connection {
     ///
     /// The `ObjectServer` is created on-demand.
     pub fn object_server(&self) -> impl Deref<Target = ObjectServer> + '_ {
-        self.inner.sync_object_server(true, None)
+        struct Wrapper(ObjectServer);
+        impl Deref for Wrapper {
+            type Target = ObjectServer;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        Wrapper(ObjectServer::new(&self.inner))
     }
 
     /// Get a reference to the underlying async Connection.
@@ -325,7 +339,7 @@ mod tests {
         tx.send(()).unwrap();
         let m = s.next().unwrap().unwrap();
         assert_eq!(m.to_string(), "Method call Test");
-        c.reply(&m, &("yay")).unwrap();
+        c.reply(&m.header(), &("yay")).unwrap();
 
         for _ in s {}
 

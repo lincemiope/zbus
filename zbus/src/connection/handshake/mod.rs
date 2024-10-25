@@ -2,16 +2,14 @@ mod auth_mechanism;
 mod client;
 mod command;
 mod common;
-mod cookies;
 #[cfg(feature = "p2p")]
 mod server;
 
 use async_trait::async_trait;
 #[cfg(unix)]
 use nix::unistd::Uid;
-use std::{collections::VecDeque, fmt::Debug};
+use std::fmt::Debug;
 use zbus_names::OwnedUniqueName;
-use zvariant::Str;
 
 #[cfg(windows)]
 use crate::win32;
@@ -23,8 +21,6 @@ pub use auth_mechanism::AuthMechanism;
 use client::Client;
 use command::Command;
 use common::Common;
-use cookies::Cookie;
-pub(crate) use cookies::CookieContext;
 #[cfg(feature = "p2p")]
 use server::Server;
 
@@ -55,11 +51,11 @@ impl Authenticated {
     pub async fn client(
         socket: BoxedSplit,
         server_guid: Option<OwnedGuid>,
-        mechanisms: Option<VecDeque<AuthMechanism>>,
+        mechanism: Option<AuthMechanism>,
         bus: bool,
         impersonate_user_id: Option<usize>,
     ) -> Result<Self> {
-        Client::new(socket, mechanisms, server_guid, bus, impersonate_user_id)
+        Client::new(socket, mechanism, server_guid, bus, impersonate_user_id)
             .perform()
             .await
     }
@@ -73,9 +69,7 @@ impl Authenticated {
         guid: OwnedGuid,
         #[cfg(unix)] client_uid: Option<u32>,
         #[cfg(windows)] client_sid: Option<String>,
-        auth_mechanisms: Option<VecDeque<AuthMechanism>>,
-        cookie_id: Option<usize>,
-        cookie_context: CookieContext<'_>,
+        auth_mechanism: Option<AuthMechanism>,
         unique_name: Option<OwnedUniqueName>,
     ) -> Result<Self> {
         Server::new(
@@ -85,9 +79,7 @@ impl Authenticated {
             client_uid,
             #[cfg(windows)]
             client_sid,
-            auth_mechanisms,
-            cookie_id,
-            cookie_context,
+            auth_mechanism,
             unique_name,
         )?
         .perform()
@@ -102,18 +94,6 @@ pub trait Handshake {
     /// On a successful handshake, you get an `Authenticated`. If you need to send a Bus Hello,
     /// this remains to be done.
     async fn perform(mut self) -> Result<Authenticated>;
-}
-
-fn random_ascii(len: usize) -> String {
-    use rand::{distributions::Alphanumeric, thread_rng, Rng};
-    use std::iter;
-
-    let mut rng = thread_rng();
-    iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
-        .map(char::from)
-        .take(len)
-        .collect()
 }
 
 fn sasl_auth_id() -> Result<String> {
@@ -178,17 +158,9 @@ mod tests {
         let (p0, p1) = create_async_socket_pair();
 
         let guid = OwnedGuid::from(Guid::generate());
-        let client = Client::new(p0.into(), None, Some(guid.clone()), false);
-        let server = Server::new(
-            p1.into(),
-            guid,
-            Some(Uid::effective().into()),
-            None,
-            None,
-            CookieContext::default(),
-            None,
-        )
-        .unwrap();
+        let client = Client::new(p0.into(), None, Some(guid.clone()), false, None);
+        let server =
+            Server::new(p1.into(), guid, Some(Uid::effective().into()), None, None).unwrap();
 
         // proceed to the handshakes
         let (client, server) = crate::utils::block_on(join(
@@ -209,8 +181,6 @@ mod tests {
             Guid::generate().into(),
             Some(Uid::effective().into()),
             None,
-            None,
-            CookieContext::default(),
             None,
         )
         .unwrap();
@@ -240,8 +210,6 @@ mod tests {
             Some(Uid::effective().into()),
             None,
             None,
-            CookieContext::default(),
-            None,
         )
         .unwrap();
 
@@ -268,8 +236,6 @@ mod tests {
             Some(Uid::effective().into()),
             None,
             None,
-            CookieContext::default(),
-            None,
         )
         .unwrap();
 
@@ -285,9 +251,7 @@ mod tests {
             p1.into(),
             Guid::generate().into(),
             Some(Uid::effective().into()),
-            Some(vec![AuthMechanism::Anonymous].into()),
-            None,
-            CookieContext::default(),
+            Some(AuthMechanism::Anonymous),
             None,
         )
         .unwrap();
@@ -304,9 +268,7 @@ mod tests {
             p1.into(),
             Guid::generate().into(),
             Some(Uid::effective().into()),
-            Some(vec![AuthMechanism::Anonymous].into()),
-            None,
-            CookieContext::default(),
+            Some(AuthMechanism::Anonymous),
             None,
         )
         .unwrap();

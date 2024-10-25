@@ -4,7 +4,7 @@
 //! be useful across various D-Bus applications. This module provides their proxy.
 
 use static_assertions::assert_impl_all;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 use zbus_names::{InterfaceName, OwnedInterfaceName};
 use zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
@@ -72,9 +72,10 @@ impl ObjectManager {
     pub async fn interfaces_removed(
         emitter: &SignalEmitter<'_>,
         object_path: ObjectPath<'_>,
-        interfaces: Vec<InterfaceName<'_>>,
+        interfaces: Cow<'_, [InterfaceName<'_>]>,
     ) -> zbus::Result<()>;
 }
 
 assert_impl_all!(ObjectManagerProxy<'_>: Send, Sync, Unpin);
+#[cfg(feature = "blocking-api")]
 assert_impl_all!(ObjectManagerProxyBlocking<'_>: Send, Sync, Unpin);

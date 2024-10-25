@@ -7,8 +7,7 @@ pub use executor::*;
 mod async_drop;
 pub(crate) mod async_lock;
 pub use async_drop::*;
-pub(crate) mod file;
 
-// Not macOS-specific itself but only used on macOS.
-#[cfg(target_os = "macos")]
+// Not unix-specific itself but only used on unix.
+#[cfg(target_family = "unix")]
 pub(crate) mod process;

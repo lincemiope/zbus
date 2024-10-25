@@ -280,11 +280,11 @@ fn test_interface() {
             // check compilation
             let c = zbus::Connection::session().await.unwrap();
             let s = c.object_server();
-            let m = zbus::message::Message::method("/", "StrU32")
+            let m = zbus::message::Message::method_call("/", "StrU32")
                 .unwrap()
                 .build(&(42,))
                 .unwrap();
-            let _ = t.call(&s, &c, &m, "StrU32".try_into().unwrap());
+            let _ = t.call(s, &c, &m, "StrU32".try_into().unwrap());
             let ctxt = SignalEmitter::new(&c, "/does/not/matter").unwrap();
             ctxt.signal(23, "ergo sum").await.unwrap();
         });
