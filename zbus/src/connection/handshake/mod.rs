@@ -158,7 +158,7 @@ mod tests {
         let (p0, p1) = create_async_socket_pair();
 
         let guid = OwnedGuid::from(Guid::generate());
-        let client = Client::new(p0.into(), None, Some(guid.clone()), false);
+        let client = Client::new(p0.into(), None, Some(guid.clone()), false, None);
         let server =
             Server::new(p1.into(), guid, Some(Uid::effective().into()), None, None).unwrap();
 
