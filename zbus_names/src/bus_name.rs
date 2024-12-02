@@ -6,8 +6,8 @@ use core::{
 use std::{borrow::Cow, sync::Arc};
 
 use crate::{
-    utils::impl_str_basic, Error, OwnedUniqueName, OwnedWellKnownName, Result, UniqueName,
-    WellKnownName,
+    unique_name, utils::impl_str_basic, well_known_name, Error, OwnedUniqueName,
+    OwnedWellKnownName, Result, UniqueName, WellKnownName,
 };
 use serde::{de, Deserialize, Serialize};
 use static_assertions::assert_impl_all;
@@ -59,7 +59,7 @@ assert_impl_all!(BusName<'_>: Send, Sync, Unpin);
 
 impl_str_basic!(BusName<'_>);
 
-impl<'name> BusName<'name> {
+impl BusName<'_> {
     /// This is faster than `Clone::clone` when `self` contains owned data.
     pub fn as_ref(&self) -> BusName<'_> {
         match self {
@@ -214,10 +214,12 @@ impl<'s> TryFrom<Str<'s>> for BusName<'s> {
     type Error = Error;
 
     fn try_from(value: Str<'s>) -> Result<Self> {
-        if value.starts_with(':') || value == "org.freedesktop.DBus" {
-            UniqueName::try_from(value).map(BusName::Unique)
+        if unique_name::validate_bytes(value.as_bytes()).is_ok() {
+            Ok(BusName::Unique(UniqueName(value)))
+        } else if well_known_name::validate_bytes(value.as_bytes()).is_ok() {
+            Ok(BusName::WellKnown(WellKnownName(value)))
         } else {
-            WellKnownName::try_from(value).map(BusName::WellKnown)
+            Err(Error::InvalidName(INVALID_BUS_NAME_ERROR))
         }
     }
 }
@@ -227,7 +229,10 @@ impl<'s> TryFrom<BusName<'s>> for WellKnownName<'s> {
 
     fn try_from(value: BusName<'s>) -> Result<Self> {
         match value {
-            BusName::Unique(name) => Err(Error::InvalidWellKnownName(name.to_string())),
+            BusName::Unique(_) => Err(Error::InvalidNameConversion {
+                from: "UniqueName",
+                to: "WellKnownName",
+            }),
             BusName::WellKnown(name) => Ok(name),
         }
     }
@@ -239,7 +244,10 @@ impl<'s> TryFrom<BusName<'s>> for UniqueName<'s> {
     fn try_from(value: BusName<'s>) -> Result<Self> {
         match value {
             BusName::Unique(name) => Ok(name),
-            BusName::WellKnown(name) => Err(Error::InvalidUniqueName(name.to_string())),
+            BusName::WellKnown(_) => Err(Error::InvalidNameConversion {
+                from: "WellKnownName",
+                to: "UniqueName",
+            }),
         }
     }
 }
@@ -252,7 +260,7 @@ impl<'s> TryFrom<&'s str> for BusName<'s> {
     }
 }
 
-impl<'s> TryFrom<String> for BusName<'s> {
+impl TryFrom<String> for BusName<'_> {
     type Error = Error;
 
     fn try_from(value: String) -> Result<Self> {
@@ -260,7 +268,7 @@ impl<'s> TryFrom<String> for BusName<'s> {
     }
 }
 
-impl<'s> TryFrom<Arc<str>> for BusName<'s> {
+impl TryFrom<Arc<str>> for BusName<'_> {
     type Error = Error;
 
     fn try_from(value: Arc<str>) -> Result<Self> {
@@ -533,3 +541,6 @@ impl NoneValue for OwnedBusName {
         BusName::null_value()
     }
 }
+
+const INVALID_BUS_NAME_ERROR: &str = "Invalid bus name. \
+    See https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names-bus";

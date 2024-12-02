@@ -143,10 +143,10 @@ impl Ord for Value<'_> {
             .unwrap_or_else(|| match (self, other) {
                 (Self::F64(lhs), Self::F64(rhs)) => lhs.total_cmp(rhs),
                 // `partial_cmp` returns `Some(_)` if either the discriminants are different
-                // or if both the left hand side and right hand side is `Self::F64(_)`,
-                // because `f64` is the only type in this enum, that does not implement `Ord`.
-                // This `match`-arm is therefore unreachable.
-                _ => unreachable!(),
+                // or if both the left hand side and right hand side is `Self::F64(_)`. We can only
+                // reach this arm, if only one of the sides is `Self::F64(_)`. So we can just
+                // pretend the ordering is equal.
+                _ => Ordering::Equal,
             })
     }
 }
@@ -576,7 +576,7 @@ pub(crate) fn value_display_fmt(
     }
 }
 
-impl<'a> Serialize for Value<'a> {
+impl Serialize for Value<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -722,7 +722,7 @@ struct ValueSeed<'sig, T> {
     phantom: PhantomData<T>,
 }
 
-impl<'sig, 'de, T> ValueSeed<'sig, T>
+impl<'de, T> ValueSeed<'_, T>
 where
     T: Deserialize<'de>,
 {
@@ -962,7 +962,7 @@ where
     }
 }
 
-impl<'a> Type for Value<'a> {
+impl Type for Value<'_> {
     const SIGNATURE: &'static Signature = &Signature::Variant;
 }
 
@@ -971,6 +971,20 @@ impl<'a> TryFrom<&Value<'a>> for Value<'a> {
 
     fn try_from(value: &Value<'a>) -> crate::Result<Value<'a>> {
         value.try_clone()
+    }
+}
+
+impl Clone for Value<'_> {
+    /// Clone the value.
+    ///
+    /// # Panics
+    ///
+    /// This method can only fail on Unix platforms for [`Value::Fd`] variant containing an
+    /// [`Fd::Owned`] variant. This happens when the current process exceeds the limit on maximum
+    /// number of open file descriptors.
+    fn clone(&self) -> Self {
+        self.try_clone()
+            .expect("Process exceeded limit on maximum number of open file descriptors")
     }
 }
 

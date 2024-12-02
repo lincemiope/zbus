@@ -66,6 +66,8 @@ pub enum Error {
     SignatureParse(crate::signature::Error),
     /// Attempted to create an empty structure (which is not allowed by the D-Bus specification).
     EmptyStructure,
+    /// Invalid object path.
+    InvalidObjectPath,
 }
 
 assert_impl_all!(Error: Send, Sync, Unpin);
@@ -81,6 +83,18 @@ impl PartialEq for Error {
             (Error::UnknownFd, Error::UnknownFd) => true,
             (Error::MaxDepthExceeded(max1), Error::MaxDepthExceeded(max2)) => max1 == max2,
             (Error::MissingFramingOffset, Error::MissingFramingOffset) => true,
+            (
+                Error::IncompatibleFormat(sig1, format1),
+                Error::IncompatibleFormat(sig2, format2),
+            ) => sig1 == sig2 && format1 == format2,
+            (
+                Error::SignatureMismatch(provided1, expected1),
+                Error::SignatureMismatch(provided2, expected2),
+            ) => provided1 == provided2 && expected1 == expected2,
+            (Error::OutOfBounds, Error::OutOfBounds) => true,
+            (Error::SignatureParse(e1), Error::SignatureParse(e2)) => e1 == e2,
+            (Error::EmptyStructure, Error::EmptyStructure) => true,
+            (Error::InvalidObjectPath, Error::InvalidObjectPath) => true,
             (_, _) => false,
         }
     }
@@ -124,6 +138,7 @@ impl fmt::Display for Error {
             Error::MaxDepthExceeded(max) => write!(f, "{max}"),
             Error::SignatureParse(e) => write!(f, "{e}"),
             Error::EmptyStructure => write!(f, "Attempted to create an empty structure"),
+            Error::InvalidObjectPath => write!(f, "Invalid object path"),
         }
     }
 }
@@ -148,6 +163,7 @@ impl Clone for Error {
             Error::MaxDepthExceeded(max) => Error::MaxDepthExceeded(*max),
             Error::SignatureParse(e) => Error::SignatureParse(*e),
             Error::EmptyStructure => Error::EmptyStructure,
+            Error::InvalidObjectPath => Error::InvalidObjectPath,
         }
     }
 }
