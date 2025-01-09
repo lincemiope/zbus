@@ -229,7 +229,11 @@ pub fn proxy(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// * `proxy` - If specified, a proxy type will also be generated for the interface. This attribute
 ///   supports all the [`macro@proxy`]-specific sub-attributes (e.g `gen_async`). The common
-///   sub-attributes (e.g `name`) are automatically forworded to the [`macro@proxy`] macro.
+///   sub-attributes (e.g `name`) are automatically forwarded to the [`macro@proxy`] macro.
+///
+/// * `introspection_docs` - whether to include the documentation in the introspection data
+///   (Default: `true`). If your interface is well-known or well-documented, you may want to set
+///   this to `false` to reduce the the size of your binary and D-Bus traffic.
 ///
 /// The methods accepts the `interface` attributes:
 ///
@@ -292,7 +296,9 @@ pub fn proxy(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// * `connection` - This marks the method argument to receive a reference to the [`Connection`] on
 ///   which the method call was received.
 /// * `header` - This marks the method argument to receive the message header associated with the
-///   D-Bus method call being handled.
+///   D-Bus method call being handled. For property methods, this will be an `Option<Header<'_>>`,
+///   which will be set to `None` if the method is called for reasons other than to respond to an
+///   external property access.
 /// * `signal_emitter` - This marks the method argument to receive a [`SignalEmitter`] instance,
 ///   which is needed for emitting signals the easy way.
 ///

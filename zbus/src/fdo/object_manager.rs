@@ -9,7 +9,7 @@ use zbus_names::{InterfaceName, OwnedInterfaceName};
 use zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 
 use super::{Error, Result};
-use crate::{interface, message::Header, object_server::SignalEmitter, ObjectServer};
+use crate::{interface, message::Header, object_server::SignalEmitter, Connection, ObjectServer};
 
 /// The type returned by the [`ObjectManagerProxy::get_managed_objects`] method.
 pub type ManagedObjects =
@@ -32,7 +32,11 @@ pub type ManagedObjects =
 #[derive(Debug, Clone)]
 pub struct ObjectManager;
 
-#[interface(name = "org.freedesktop.DBus.ObjectManager", proxy(visibility = "pub"))]
+#[interface(
+    name = "org.freedesktop.DBus.ObjectManager",
+    introspection_docs = false,
+    proxy(visibility = "pub")
+)]
 impl ObjectManager {
     /// The return value of this method is a dict whose keys are object paths. All returned object
     /// paths are children of the object path implementing this interface, i.e. their object paths
@@ -45,6 +49,7 @@ impl ObjectManager {
     async fn get_managed_objects(
         &self,
         #[zbus(object_server)] server: &ObjectServer,
+        #[zbus(connection)] connection: &Connection,
         #[zbus(header)] header: Header<'_>,
     ) -> Result<ManagedObjects> {
         let path = header.path().ok_or(crate::Error::MissingField)?;
@@ -53,7 +58,7 @@ impl ObjectManager {
             .get_child(path)
             .ok_or_else(|| Error::UnknownObject(format!("Unknown object '{path}'")))?;
 
-        node.get_managed_objects().await
+        node.get_managed_objects(server, connection).await
     }
 
     /// This signal is emitted when either a new object is added or when an existing object gains

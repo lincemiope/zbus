@@ -76,12 +76,15 @@ impl SocketReader {
                     // 1. the channel is closed.
                     // 2. No active receivers.
                     //
-                    // In either case, just log it.
-                    trace!(
-                        "Error broadcasting message to stream for `{:?}`: {:?}",
-                        rule,
-                        e
-                    );
+                    // In either case, just log it unless this is the channel for the generic
+                    // unfiltered stream, where the channel is not created on-demand.
+                    if rule.is_some() {
+                        trace!(
+                            "Error broadcasting message to stream for `{:?}`: {:?}",
+                            rule,
+                            e
+                        );
+                    }
                 }
             }
             trace!("Broadcasted to all streams: {:?}", msg);
@@ -95,7 +98,7 @@ impl SocketReader {
         }
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn read_socket(&mut self) -> crate::Result<Message> {
         self.activity_event.notify(usize::MAX);
         let seq = self.prev_seq + 1;

@@ -1,9 +1,9 @@
 [package]
 name = "zbus_xml"
-version = "5.0.0"
+version = "5.0.1"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
 edition = "2021"
-rust-version = "1.81"
+rust-version = { workspace = true }
 
 description = "API to handle D-Bus introspection XML"
 repository = "https://github.com/dbus2/zbus/"
@@ -28,4 +28,3 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [lints]
 workspace = true
-

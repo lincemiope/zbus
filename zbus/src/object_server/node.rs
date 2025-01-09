@@ -8,7 +8,11 @@ use std::{
 use zbus_names::InterfaceName;
 use zvariant::{ObjectPath, OwnedObjectPath, OwnedValue};
 
-use crate::fdo::{self, Introspectable, ManagedObjects, ObjectManager, Peer, Properties};
+use crate::{
+    fdo::{self, Introspectable, ManagedObjects, ObjectManager, Peer, Properties},
+    object_server::SignalEmitter,
+    Connection, ObjectServer,
+};
 
 use super::{ArcInterface, Interface};
 
@@ -208,7 +212,11 @@ impl Node {
         xml
     }
 
-    pub(crate) async fn get_managed_objects(&self) -> fdo::Result<ManagedObjects> {
+    pub(crate) async fn get_managed_objects(
+        &self,
+        object_server: &ObjectServer,
+        connection: &Connection,
+    ) -> fdo::Result<ManagedObjects> {
         let mut managed_objects = ManagedObjects::new();
 
         // Recursively get all properties of all interfaces of descendants.
@@ -222,7 +230,9 @@ impl Node {
                     && *n != &Properties::name()
                     && *n != &ObjectManager::name()
             }) {
-                let props = node.get_properties(iface_name.clone()).await?;
+                let props = node
+                    .get_properties(object_server, connection, iface_name.clone())
+                    .await?;
                 interfaces.insert(iface_name.clone().into(), props);
             }
             managed_objects.insert(node.path.clone(), interfaces);
@@ -234,14 +244,17 @@ impl Node {
 
     pub(super) async fn get_properties(
         &self,
+        object_server: &ObjectServer,
+        connection: &Connection,
         interface_name: InterfaceName<'_>,
     ) -> fdo::Result<HashMap<String, OwnedValue>> {
+        let emitter = SignalEmitter::new(connection, self.path.clone())?;
         self.interface_lock(interface_name)
             .expect("Interface was added but not found")
             .instance
             .read()
             .await
-            .get_all()
+            .get_all(object_server, connection, None, &emitter)
             .await
     }
 }

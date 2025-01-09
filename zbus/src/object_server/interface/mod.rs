@@ -17,8 +17,11 @@ use zbus_names::{InterfaceName, MemberName};
 use zvariant::{OwnedValue, Value};
 
 use crate::{
-    async_lock::RwLock, fdo, message::Message, object_server::SignalEmitter, Connection,
-    ObjectServer,
+    async_lock::RwLock,
+    fdo,
+    message::{self, Header, Message},
+    object_server::SignalEmitter,
+    Connection, ObjectServer,
 };
 
 /// This trait is used to dispatch messages to an interface instance.
@@ -45,10 +48,28 @@ pub trait Interface: Any + Send + Sync {
     }
 
     /// Get a property value. Returns `None` if the property doesn't exist.
-    async fn get(&self, property_name: &str) -> Option<fdo::Result<OwnedValue>>;
+    ///
+    /// Note: The header parameter will be None when the getter is not being called as part
+    /// of D-Bus communication (for example, when it is called as part of initial object setup,
+    /// before it is registered on the bus, or when we manually send out property changed
+    /// notifications).
+    async fn get(
+        &self,
+        property_name: &str,
+        server: &ObjectServer,
+        connection: &Connection,
+        header: Option<&message::Header<'_>>,
+        emitter: &SignalEmitter<'_>,
+    ) -> Option<fdo::Result<OwnedValue>>;
 
     /// Return all the properties.
-    async fn get_all(&self) -> fdo::Result<HashMap<String, OwnedValue>>;
+    async fn get_all(
+        &self,
+        object_server: &ObjectServer,
+        connection: &Connection,
+        header: Option<&message::Header<'_>>,
+        emitter: &SignalEmitter<'_>,
+    ) -> fdo::Result<HashMap<String, OwnedValue>>;
 
     /// Set a property value.
     ///
@@ -59,9 +80,19 @@ pub trait Interface: Any + Send + Sync {
         &'call self,
         property_name: &'call str,
         value: &'call Value<'_>,
+        object_server: &'call ObjectServer,
+        connection: &'call Connection,
+        header: Option<&'call message::Header<'_>>,
         emitter: &'call SignalEmitter<'_>,
     ) -> DispatchResult<'call> {
-        let _ = (property_name, value, emitter);
+        let _ = (
+            property_name,
+            value,
+            object_server,
+            connection,
+            header,
+            emitter,
+        );
         DispatchResult::RequiresMut
     }
 
@@ -74,6 +105,9 @@ pub trait Interface: Any + Send + Sync {
         &mut self,
         property_name: &str,
         value: &Value<'_>,
+        object_server: &ObjectServer,
+        connection: &Connection,
+        header: Option<&Header<'_>>,
         emitter: &SignalEmitter<'_>,
     ) -> Option<fdo::Result<()>>;
 

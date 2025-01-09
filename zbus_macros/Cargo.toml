@@ -1,13 +1,13 @@
 [package]
 name = "zbus_macros"
 # Keep version in sync with zbus crate
-version = "5.0.1"
+version = "5.2.0"
 authors = [
     "Marc-André Lureau <marcandre.lureau@redhat.com>",
     "Zeeshan Ali Khan <zeeshanak@gnome.org>",
 ]
 edition = "2021"
-rust-version = "1.81"
+rust-version = { workspace = true }
 
 description = "proc-macros for zbus"
 repository = "https://github.com/dbus2/zbus/"
@@ -20,6 +20,7 @@ readme = "README.md"
 default = []
 # Enable blocking API.
 blocking-api = ["zbus/blocking-api"]
+gvariant = ["zvariant/gvariant", "zvariant_utils/gvariant"]
 
 [lib]
 proc-macro = true
@@ -29,6 +30,8 @@ proc-macro2 = "1.0.81"
 syn = { version = "2.0.64", features = ["extra-traits", "fold", "full"] }
 quote = "1.0.36"
 proc-macro-crate = "3.2.0"
+zvariant = { path = "../zvariant", version = "5.0.0", default-features = false }
+zbus_names = { path = "../zbus_names", version = "4.0" }
 zvariant_utils = { path = "../zvariant_utils", version = "3.0.0" }
 
 [dev-dependencies]

@@ -137,7 +137,7 @@ pub struct GenTrait<'i> {
     pub format: bool,
 }
 
-impl<'i> Display for GenTrait<'i> {
+impl Display for GenTrait<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.format {
             let mut unformatted = String::new();
@@ -152,7 +152,7 @@ impl<'i> Display for GenTrait<'i> {
     }
 }
 
-impl<'i> GenTrait<'i> {
+impl GenTrait<'_> {
     fn write_interface<W: Write>(&self, w: &mut W) -> std::fmt::Result {
         let iface = self.interface;
         let idx = iface.name().rfind('.').unwrap() + 1;
@@ -479,7 +479,12 @@ fn format_generated_code(generated_code: &str) -> std::io::Result<String> {
     writeln!(rustfmt_stdin)?;
     rustfmt_stdin.write_all(generated_code.as_bytes())?;
 
-    process.wait()?;
+    let exit_status = process.wait()?;
+    if !exit_status.success() {
+        eprintln!("`rustfmt` did not exit successfully. Continuing with unformatted code.");
+        return Ok(generated_code.to_string());
+    }
+
     let mut formatted = String::new();
     rustfmt_stdout.read_to_string(&mut formatted)?;
 

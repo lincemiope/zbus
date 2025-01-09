@@ -324,6 +324,21 @@ impl<'m> MatchRule<'m> {
 
         Ok(true)
     }
+
+    pub(crate) fn fdo_signal_builder<S>(signal_name: S) -> Builder<'m>
+    where
+        S: TryInto<MemberName<'m>>,
+        S::Error: Into<Error>,
+    {
+        Builder::new()
+            .msg_type(Type::Signal)
+            .sender("org.freedesktop.DBus")
+            .unwrap()
+            .interface("org.freedesktop.DBus")
+            .unwrap()
+            .member(signal_name)
+            .unwrap()
+    }
 }
 
 impl Display for MatchRule<'_> {
@@ -486,7 +501,7 @@ pub enum PathSpec<'m> {
 
 assert_impl_all!(PathSpec<'_>: Send, Sync, Unpin);
 
-impl<'m> PathSpec<'m> {
+impl PathSpec<'_> {
     /// Create an owned clone of `self`.
     fn to_owned(&self) -> PathSpec<'static> {
         match self {
