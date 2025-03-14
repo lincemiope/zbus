@@ -3,9 +3,8 @@
 use enumflags2::{bitflags, BitFlags};
 use event_listener::{Event, EventListener};
 use futures_core::{ready, stream};
-use futures_util::{future::Either, stream::Map};
+use futures_lite::stream::Map;
 use ordered_stream::{join as join_streams, FromFuture, Join, OrderedStream, PollResult};
-use static_assertions::assert_impl_all;
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -74,8 +73,6 @@ pub struct Proxy<'a> {
     pub(crate) inner: Arc<ProxyInner<'a>>,
 }
 
-assert_impl_all!(Proxy<'_>: Send, Sync, Unpin);
-
 /// This is required to avoid having the Drop impl extend the lifetime 'a, which breaks zbus_xmlgen
 /// (and possibly other crates).
 pub(crate) struct ProxyInnerStatic {
@@ -126,7 +123,7 @@ pub struct PropertyChanged<'a, T> {
     phantom: std::marker::PhantomData<T>,
 }
 
-impl<'a, T> PropertyChanged<'a, T> {
+impl<T> PropertyChanged<'_, T> {
     /// The name of the property that changed.
     pub fn name(&self) -> &str {
         self.name
@@ -137,7 +134,7 @@ impl<'a, T> PropertyChanged<'a, T> {
     /// If the notification signal contained the new value, it has been cached already and this call
     /// will return that value. Otherwise (i.e. invalidated property), a D-Bus call is made to fetch
     /// and cache the new value.
-    pub async fn get_raw<'p>(&'p self) -> Result<impl Deref<Target = Value<'static>> + 'p> {
+    pub async fn get_raw(&self) -> Result<impl Deref<Target = Value<'static>> + '_> {
         struct Wrapper<'w> {
             name: &'w str,
             values: RwLockReadGuard<'w, HashMap<String, PropertyValue>>,
@@ -401,7 +398,7 @@ impl PropertiesCache {
         interface: InterfaceName<'static>,
         uncached_properties: HashSet<zvariant::Str<'static>>,
     ) -> Result<()> {
-        use futures_util::StreamExt;
+        use futures_lite::StreamExt;
 
         trace!("Listening for property changes on {interface}...");
         while let Some(update) = prop_changes.next().await {
@@ -1004,7 +1001,7 @@ impl<'a> Proxy<'a> {
     /// Note that zbus doesn't queue the updates. If the listener is slower than the receiver, it
     /// will only receive the last update.
     pub async fn receive_owner_changed(&self) -> Result<OwnerChangedStream<'a>> {
-        use futures_util::StreamExt;
+        use futures_lite::StreamExt;
         let dbus_proxy = fdo::DBusProxy::builder(self.connection())
             .cache_properties(CacheProperties::No)
             .build()
@@ -1062,8 +1059,6 @@ pub enum MethodFlags {
     AllowInteractiveAuth = 0x4,
 }
 
-assert_impl_all!(MethodFlags: Send, Sync, Unpin);
-
 impl From<MethodFlags> for Flags {
     fn from(method_flag: MethodFlags) -> Self {
         match method_flag {
@@ -1087,8 +1082,6 @@ pub struct OwnerChangedStream<'a> {
     name: BusName<'a>,
 }
 
-assert_impl_all!(OwnerChangedStream<'_>: Send, Sync, Unpin);
-
 impl<'a> OwnerChangedStream<'a> {
     /// The bus name being tracked.
     pub fn name(&self) -> &BusName<'a> {
@@ -1100,8 +1093,7 @@ impl stream::Stream for OwnerChangedStream<'_> {
     type Item = Option<UniqueName<'static>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use futures_util::StreamExt;
-        self.get_mut().stream.poll_next_unpin(cx)
+        Pin::new(&mut self.get_mut().stream).poll_next(cx)
     }
 }
 
@@ -1274,8 +1266,6 @@ impl<'a> SignalStream<'a> {
     }
 }
 
-assert_impl_all!(SignalStream<'_>: Send, Sync, Unpin);
-
 impl stream::Stream for SignalStream<'_> {
     type Item = Message;
 
@@ -1355,6 +1345,11 @@ where
 
     /// The reference to the underlying `zbus::Proxy`.
     fn inner(&self) -> &Proxy<'c>;
+}
+
+enum Either<L, R> {
+    Left(L),
+    Right(R),
 }
 
 #[cfg(test)]

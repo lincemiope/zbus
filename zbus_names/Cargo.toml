@@ -1,27 +1,25 @@
 [package]
 name = "zbus_names"
-version = "4.1.0"
+version = "4.2.0"
 authors = ["Zeeshan Ali Khan <zeeshanak@gnome.org>"]
-edition = "2021"
+edition = { workspace = true }
 rust-version = { workspace = true }
 
 description = "A collection of D-Bus bus names types"
-repository = "https://github.com/dbus2/zbus/"
+repository = { workspace = true }
 keywords = ["D-Bus", "DBus", "IPC"]
-license = "MIT"
+license = { workspace = true }
 categories = ["os::unix-apis"]
 readme = "README.md"
 
 [dependencies]
-serde = { version = "1.0.200", features = ["derive"] }
-zvariant = { path = "../zvariant", version = "5.0.0", default-features = false, features = [
-    "enumflags2",
-] }
-static_assertions = "1.1.0"
-winnow = "0.6"
+zvariant = { workspace = true, features = ["enumflags2"] }
+
+serde.workspace = true
+winnow.workspace = true
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion.workspace = true
 
 [lib]
 bench = false

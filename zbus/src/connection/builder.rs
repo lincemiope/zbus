@@ -1,7 +1,6 @@
 #[cfg(not(feature = "tokio"))]
 use async_io::Async;
 use event_listener::Event;
-use static_assertions::assert_impl_all;
 #[cfg(not(feature = "tokio"))]
 use std::net::TcpStream;
 #[cfg(all(unix, not(feature = "tokio")))]
@@ -72,8 +71,6 @@ pub struct Builder<'a> {
     unique_name: Option<crate::names::UniqueName<'a>>,
     impersonate_user_id: Option<usize>,
 }
-
-assert_impl_all!(Builder<'_>: Send, Sync, Unpin);
 
 impl<'a> Builder<'a> {
     /// Create a builder for the session/user message bus connection.

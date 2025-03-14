@@ -82,3 +82,33 @@ fn derive_dict() {
 
     assert_eq!(Test::SIGNATURE, "a{sv}")
 }
+
+#[test]
+#[ignore]
+fn issues_311() {
+    // Issue 311: Value macro not able to handle Option in Dict.
+    //
+    // org.freedesktop.ModemManager1.Modem.Signal props are a dict with optional values depending on
+    // the property you read.
+    #[derive(Debug, Type, DeserializeDict, OwnedValue, Value)]
+    #[zbus(signature = "dict")]
+    pub struct SignalInfo {
+        pub rssi: Option<i32>,
+        pub ecio: Option<i32>,
+        pub io: Option<i32>,
+        pub sinr: Option<i32>,
+    }
+}
+
+#[test]
+#[ignore]
+fn issues_1252() {
+    // Issue 1252: Naming a field `key` in a dict struct causes a conflict with variables created by
+    // `DeserializeDict` macro, ending up with a strange error.
+    #[derive(DeserializeDict, Type)]
+    #[zvariant(signature = "a{sv}")]
+    pub struct OwnedProperties {
+        key: String,
+        val: OwnedValue,
+    }
+}

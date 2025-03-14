@@ -524,11 +524,7 @@ pub fn expand(args: Punctuated<Meta, Token![,]>, mut input: ItemImpl) -> syn::Re
                         quote!(self.#ident(#args_names)#method_await)
                     } else if is_async {
                         quote!(
-                                #zbus::export::futures_util::future::FutureExt::map(
-                                    self.#ident(#args_names),
-                                    ::std::result::Result::Ok,
-                                )
-                                .await
+                            ::std::result::Result::Ok(self.#ident(#args_names).await)
                         )
                     } else {
                         quote!(
@@ -693,7 +689,7 @@ pub fn expand(args: Punctuated<Meta, Token![,]>, mut input: ItemImpl) -> syn::Re
                     get_dispatch.extend(q);
 
                     let q = if is_fallible_property {
-                        quote!(
+                        quote!({
                             #args_from_msg
                             if let Ok(prop) = self.#ident(#args_names)#method_await {
                             props.insert(
@@ -705,9 +701,9 @@ pub fn expand(args: Punctuated<Meta, Token![,]>, mut input: ItemImpl) -> syn::Re
                                 )
                                 .map_err(|e| #zbus::fdo::Error::Failed(e.to_string()))?,
                             );
-                        })
+                        }})
                     } else {
-                        quote!(
+                        quote!({
                             #args_from_msg
                             props.insert(
                         ::std::string::ToString::to_string(#member_name),
@@ -717,7 +713,7 @@ pub fn expand(args: Punctuated<Meta, Token![,]>, mut input: ItemImpl) -> syn::Re
                             ),
                         )
                         .map_err(|e| #zbus::fdo::Error::Failed(e.to_string()))?,
-                    );)
+                    );})
                     };
 
                     get_all.extend(q);
@@ -783,7 +779,11 @@ pub fn expand(args: Punctuated<Meta, Token![,]>, mut input: ItemImpl) -> syn::Re
                             #args_from_msg
                             let reply = self.#ident(#args_names)#method_await;
                             let hdr = message.header();
-                            #reply
+                            if hdr.primary().flags().contains(zbus::message::Flags::NoReplyExpected) {
+                                Ok(())
+                            } else {
+                                #reply
+                            }
                         };
                         #zbus::object_server::DispatchResult::Async(::std::boxed::Box::pin(async move {
                             future.await

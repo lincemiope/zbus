@@ -5,10 +5,8 @@ use std::{
 };
 
 use async_broadcast::Receiver as ActiveReceiver;
-use futures_core::stream;
-use futures_util::stream::FusedStream;
+use futures_core::stream::{self, FusedStream};
 use ordered_stream::{OrderedStream, PollResult};
-use static_assertions::assert_impl_all;
 use tracing::warn;
 
 use crate::{
@@ -32,8 +30,6 @@ use crate::{
 pub struct MessageStream {
     inner: Inner,
 }
-
-assert_impl_all!(MessageStream: Send, Sync, Unpin);
 
 impl MessageStream {
     /// Create a message stream for the given match rule.

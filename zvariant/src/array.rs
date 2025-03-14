@@ -3,7 +3,6 @@ use serde::{
     de::{DeserializeSeed, Deserializer, SeqAccess, Visitor},
     ser::{Serialize, SerializeSeq, Serializer},
 };
-use static_assertions::assert_impl_all;
 use std::fmt::{Display, Write};
 
 use crate::{
@@ -22,8 +21,6 @@ pub struct Array<'a> {
     elements: Vec<Value<'a>>,
     signature: Signature,
 }
-
-assert_impl_all!(Array<'_>: Send, Sync, Unpin);
 
 impl<'a> Array<'a> {
     /// Create a new empty `Array`, given the signature of the elements.
@@ -82,7 +79,6 @@ impl<'a> Array<'a> {
             .get(idx)
             .map(|v| v.downcast_ref::<V>())
             .transpose()
-            .map_err(Into::into)
     }
 
     /// Get the number of elements.
@@ -202,8 +198,6 @@ impl ArraySeed {
         }
     }
 }
-
-assert_impl_all!(ArraySeed: Unpin);
 
 impl DynamicType for Array<'_> {
     fn signature(&self) -> Signature {
