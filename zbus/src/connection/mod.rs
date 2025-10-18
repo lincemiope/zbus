@@ -78,6 +78,8 @@ pub(crate) struct ConnectionInner {
     drop_event: Event,
 
     method_timeout: Option<Duration>,
+    // Cache the credentials.
+    credentials: OnceLock<ConnectionCredentials>,
 }
 
 impl Drop for ConnectionInner {
@@ -1190,6 +1192,7 @@ impl Connection {
                 registered_names: Mutex::new(HashMap::new()),
                 drop_event: Event::new(),
                 method_timeout,
+                credentials: OnceLock::new(),
             }),
         };
 
@@ -1215,6 +1218,36 @@ impl Connection {
     /// This function is meant for the caller to implement idle or timeout on inactivity.
     pub fn monitor_activity(&self) -> EventListener {
         self.inner.activity_event.listen()
+    }
+
+    /// Return the peer credentials.
+    ///
+    /// The fields are populated on the best effort basis. Some or all fields may not even make
+    /// sense for certain sockets or on certain platforms and hence will be set to `None`.
+    ///
+    /// This method caches the credentials on the first call for you.
+    ///
+    /// # Caveats
+    ///
+    /// Currently `linux_security_label` field is not populated.
+    pub async fn peer_creds(&self) -> io::Result<&ConnectionCredentials> {
+        let mut socket_write = self.inner.socket_write.lock().await;
+
+        // Keeping the `socket_write` lock guard ensures that this isn't racy.
+        if let Some(creds) = self.inner.credentials.get() {
+            return Ok(creds);
+        }
+
+        self.inner
+            .credentials
+            .set(socket_write.peer_credentials().await?)
+            .expect("credentials cache set more than once");
+
+        Ok(self
+            .inner
+            .credentials
+            .get()
+            .expect("credentials should have been set"))
     }
 
     /// Return the peer credentials.

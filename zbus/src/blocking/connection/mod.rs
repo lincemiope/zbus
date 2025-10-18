@@ -255,6 +255,20 @@ impl Connection {
     /// The fields are populated on the best effort basis. Some or all fields may not even make
     /// sense for certain sockets or on certain platforms and hence will be set to `None`.
     ///
+    /// This method caches the credentials on the first call for you.
+    ///
+    /// # Caveats
+    ///
+    /// Currently `linux_security_label` field is not populated.
+    pub async fn peer_creds(&self) -> io::Result<&ConnectionCredentials> {
+        block_on(self.inner.peer_creds())
+    }
+
+    /// Return the peer credentials.
+    ///
+    /// The fields are populated on the best effort basis. Some or all fields may not even make
+    /// sense for certain sockets or on certain platforms and hence will be set to `None`.
+    ///
     /// # Caveats
     ///
     /// Currently `linux_security_label` field is not populated.
