@@ -272,7 +272,9 @@ impl Connection {
     /// # Caveats
     ///
     /// Currently `linux_security_label` field is not populated.
+    #[deprecated(since = "5.13.0", note = "Use `peer_creds` instead")]
     pub fn peer_credentials(&self) -> io::Result<ConnectionCredentials> {
+        #[allow(deprecated)]
         block_on(self.inner.peer_credentials())
     }
 
