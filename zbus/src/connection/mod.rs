@@ -1224,7 +1224,7 @@ impl Connection {
     ///
     /// # Caveats
     ///
-    /// Currently `unix_group_ids` and `linux_security_label` fields are not populated.
+    /// Currently `linux_security_label` field is not populated.
     pub async fn peer_credentials(&self) -> io::Result<ConnectionCredentials> {
         self.inner
             .socket_write

@@ -413,21 +413,24 @@ fn get_unix_peer_creds_blocking(fd: RawFd) -> io::Result<crate::fdo::ConnectionC
         {
             // FIXME: Replace with rustix API when it provides SO_PEERPIDFD sockopt:
             // https://github.com/bytecodealliance/rustix/pull/1474
-            const SO_PEERPIDFD: libc::c_int = 79;
-            let mut pidfd: libc::c_int = -1;
-            let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+            use libc::{c_int, socklen_t};
+            use std::mem::{size_of, MaybeUninit};
+
+            let mut pidfd = MaybeUninit::<c_int>::zeroed();
+            let mut len = size_of::<c_int>() as socklen_t;
 
             let ret = unsafe {
                 libc::getsockopt(
                     fd.as_raw_fd(),
                     libc::SOL_SOCKET,
-                    SO_PEERPIDFD,
-                    &mut pidfd as *mut _ as *mut libc::c_void,
+                    libc::SO_PEERPIDFD,
+                    pidfd.as_mut_ptr().cast(),
                     &mut len,
                 )
             };
 
-            if ret == 0 && pidfd >= 0 {
+            if ret == 0 {
+                let pidfd = unsafe { pidfd.assume_init() };
                 creds = creds
                     .set_process_fd(unsafe { std::os::fd::OwnedFd::from_raw_fd(pidfd).into() });
             } else if ret < 0 {
