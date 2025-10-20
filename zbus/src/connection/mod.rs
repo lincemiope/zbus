@@ -79,7 +79,7 @@ pub(crate) struct ConnectionInner {
 
     method_timeout: Option<Duration>,
     // Cache the credentials.
-    credentials: OnceLock<ConnectionCredentials>,
+    credentials: OnceLock<Arc<ConnectionCredentials>>,
 }
 
 impl Drop for ConnectionInner {
@@ -1230,7 +1230,7 @@ impl Connection {
     /// # Caveats
     ///
     /// Currently `linux_security_label` field is not populated.
-    pub async fn peer_creds(&self) -> io::Result<&ConnectionCredentials> {
+    pub async fn peer_creds(&self) -> io::Result<&Arc<ConnectionCredentials>> {
         let mut socket_write = self.inner.socket_write.lock().await;
 
         // Keeping the `socket_write` lock guard ensures that this isn't racy.
@@ -1240,7 +1240,7 @@ impl Connection {
 
         self.inner
             .credentials
-            .set(socket_write.peer_credentials().await?)
+            .set(socket_write.peer_credentials().await.map(Arc::new)?)
             .expect("credentials cache set more than once");
 
         Ok(self
