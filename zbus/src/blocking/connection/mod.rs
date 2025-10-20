@@ -2,7 +2,7 @@
 
 use enumflags2::BitFlags;
 use event_listener::EventListener;
-use std::{io, ops::Deref};
+use std::{io, ops::Deref, sync::Arc};
 use zbus_names::{BusName, ErrorName, InterfaceName, MemberName, OwnedUniqueName, WellKnownName};
 use zvariant::ObjectPath;
 
@@ -260,7 +260,7 @@ impl Connection {
     /// # Caveats
     ///
     /// Currently `linux_security_label` field is not populated.
-    pub async fn peer_creds(&self) -> io::Result<&ConnectionCredentials> {
+    pub async fn peer_creds(&self) -> io::Result<&Arc<ConnectionCredentials>> {
         block_on(self.inner.peer_creds())
     }
 
