@@ -15,6 +15,7 @@ use proc_macro::TokenStream;
 use syn::DeriveInput;
 
 mod dict;
+mod signature;
 mod r#type;
 mod utils;
 mod value;
@@ -486,6 +487,90 @@ pub fn value_macro_derive(input: TokenStream) -> TokenStream {
 pub fn owned_value_macro_derive(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     value::expand_derive(ast, value::ValueType::OwnedValue)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+/// Constructs a const [`Signature`] with compile-time validation.
+///
+/// This macro creates a `Signature` from a string literal at compile time, validating
+/// that the signature string is valid D-Bus signature. Invalid signatures will cause
+/// a compilation error.
+///
+/// # Examples
+///
+/// ## Basic usage
+///
+/// ```
+/// use zvariant::signature;
+///
+/// // Create signatures for basic types
+/// let sig = signature!("s");  // String signature
+/// assert_eq!(sig.to_string(), "s");
+///
+/// let sig = signature!("i");  // 32-bit integer signature
+/// assert_eq!(sig.to_string(), "i");
+/// ```
+///
+/// ## Container types
+///
+/// ```
+/// use zvariant::signature;
+///
+/// // Array of strings
+/// let sig = signature!("as");
+/// assert_eq!(sig.to_string(), "as");
+///
+/// // Dictionary mapping strings to variants
+/// let sig = signature!("a{sv}");
+/// assert_eq!(sig.to_string(), "a{sv}");
+///
+/// // Structures
+/// let sig = signature!("(isx)");
+/// assert_eq!(sig.to_string(), "(isx)");
+/// ```
+///
+/// ## Const signatures
+///
+/// The macro can be used to create const signatures, which is especially useful
+/// for defining signatures at compile time:
+///
+/// ```
+/// use zvariant::{signature, Signature};
+///
+/// const MY_SIGNATURE: Signature = signature!("a{sv}");
+///
+/// fn process_data(_data: &str) {
+///     assert_eq!(MY_SIGNATURE.to_string(), "a{sv}");
+/// }
+/// ```
+///
+/// ## Using the `dict` alias
+///
+/// For convenience, `dict` is an alias for `a{sv}` (string-to-variant dictionary):
+///
+/// ```
+/// use zvariant::signature;
+///
+/// let sig = signature!("dict");
+/// assert_eq!(sig.to_string(), "a{sv}");
+/// ```
+///
+/// ## Compile-time validation
+///
+/// Invalid signatures will be caught at compile time:
+///
+/// ```compile_fail
+/// use zvariant::signature;
+///
+/// // This will fail to compile because 'z' is not a valid D-Bus type
+/// let sig = signature!("z");
+/// ```
+///
+/// [`Signature`]: https://docs.rs/zvariant/latest/zvariant/enum.Signature.html
+#[proc_macro]
+pub fn signature(input: TokenStream) -> TokenStream {
+    signature::expand_signature_macro(input.into())
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }

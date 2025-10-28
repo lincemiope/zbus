@@ -1058,10 +1058,7 @@ mod tests {
 
         assert_eq!(
             Value::new((
-                vec![
-                    Signature::try_from("").unwrap(),
-                    Signature::try_from("(ysa{sd})").unwrap(),
-                ],
+                vec![crate::signature!(""), crate::signature!("(ysa{sd})"),],
                 vec![
                     ObjectPath::from_static_str("/").unwrap(),
                     ObjectPath::from_static_str("/a/very/looooooooooooooooooooooooo0000o0ng/path")

@@ -24,7 +24,29 @@ use crate::serialized::Format;
 ///
 /// # Examples
 ///
-/// Typically, you'd create a `Signature` from a string:
+/// ## Using the `signature!` macro
+///
+/// The recommended way to create a `Signature` is using the [`signature!`] macro, which provides
+/// compile-time validation and can be used in const contexts:
+///
+/// ```
+/// use zvariant::signature;
+/// use zvariant::Signature;
+///
+/// // Compile-time validated signatures
+/// let sig = signature!("a{sv}");
+/// assert_eq!(sig.to_string(), "a{sv}");
+///
+/// let sig = signature!("(xa{bs}as)");
+/// assert_eq!(sig.to_string(), "(xa{bs}as)");
+///
+/// // Can be used in const contexts
+/// const SIGNATURE: Signature = signature!("a{sv}");
+/// ```
+///
+/// ## Creating from a string at runtime
+///
+/// If you need to create a `Signature` from a runtime string, use `from_str`:
 ///
 /// ```
 /// use std::str::FromStr;
@@ -32,11 +54,9 @@ use crate::serialized::Format;
 ///
 /// let sig = Signature::from_str("a{sv}").unwrap();
 /// assert_eq!(sig.to_string(), "a{sv}");
-///
-/// let sig = Signature::from_str("(xa{bs}as)").unwrap();
-/// assert_eq!(sig.to_string(), "(xa{bs}as)");
 /// ```
 ///
+/// [`signature!`]: https://docs.rs/zvariant/latest/zvariant/macro.signature.html
 /// [`zvariant::Signature`]: https://docs.rs/zvariant/latest/zvariant/struct.Signature.html
 #[derive(Debug, Default, Clone)]
 pub enum Signature {

@@ -321,7 +321,7 @@ mod tests {
     use std::{borrow::Cow, error::Error};
     use test_log::test;
     use zbus_names::{InterfaceName, MemberName};
-    use zvariant::{ObjectPath, Signature};
+    use zvariant::{signature, ObjectPath, Signature};
 
     #[test]
     fn header() -> Result<(), Box<dyn Error>> {
@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(h.destination().unwrap(), ":1.11");
         assert_eq!(h.reply_serial().map(Into::into), Some(88));
         assert_eq!(h.sender(), None);
-        assert_eq!(h.signature(), &Signature::try_from("say").unwrap());
+        assert_eq!(h.signature(), &signature!("say"));
         assert_eq!(h.unix_fds(), Some(12));
 
         Ok(())
