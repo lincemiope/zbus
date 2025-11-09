@@ -208,19 +208,19 @@ pub fn create_proxy(
             let method_attrs = MethodAttributes::parse(&m.attrs)?;
             let property = method_attrs.property.as_ref();
 
-            let method_name = m.sig.ident.to_string();
+            let rust_method_name = m.sig.ident.to_string();
 
             let is_signal = method_attrs.signal;
             let is_property = property.is_some();
             let has_inputs = m.sig.inputs.len() > 1;
 
-            let member_name = method_attrs.name.clone().unwrap_or_else(|| {
+            let dbus_member_name = method_attrs.name.clone().unwrap_or_else(|| {
                 case::pascal_or_camel_case(
                     if is_property && has_inputs {
-                        assert!(method_name.starts_with("set_"));
-                        &method_name[4..]
+                        assert!(rust_method_name.starts_with("set_"));
+                        &rust_method_name[4..]
                     } else {
-                        &method_name
+                        &rust_method_name
                     },
                     true,
                 )
@@ -236,12 +236,12 @@ pub fn create_proxy(
                 };
 
                 if let PropertyEmitsChangedSignal::False = emits_changed_signal {
-                    uncached_properties.push(member_name.clone());
+                    uncached_properties.push(dbus_member_name.clone());
                 }
 
                 gen_proxy_property(
-                    &member_name,
-                    &method_name,
+                    &dbus_member_name,
+                    &rust_method_name,
                     m,
                     &async_opts,
                     emits_changed_signal,
@@ -250,8 +250,8 @@ pub fn create_proxy(
                 let (method, types) = gen_proxy_signal(
                     &proxy_name,
                     &iface_name,
-                    &member_name,
-                    &method_name,
+                    &dbus_member_name,
+                    &rust_method_name,
                     m,
                     &async_opts,
                     visibility,
@@ -261,7 +261,13 @@ pub fn create_proxy(
 
                 method
             } else {
-                gen_proxy_method_call(&member_name, &method_name, m, method_attrs, &async_opts)?
+                gen_proxy_method_call(
+                    &dbus_member_name,
+                    &rust_method_name,
+                    m,
+                    method_attrs,
+                    &async_opts,
+                )?
             };
             methods.extend(m);
         }
@@ -465,8 +471,8 @@ pub fn create_proxy(
 }
 
 fn gen_proxy_method_call(
-    method_name: &str,
-    snake_case_name: &str,
+    dbus_member_name: &str,
+    rust_method_name: &str,
     m: &TraitItemFn,
     method_attrs: MethodAttributes,
     async_opts: &AsyncOpts,
@@ -542,7 +548,7 @@ fn gen_proxy_method_call(
         _ => None,
     };
 
-    let method = Ident::new(snake_case_name, Span::call_site());
+    let method = Ident::new(rust_method_name, Span::call_site());
     let inputs = &m.sig.inputs;
     let mut generics = m.sig.generics.clone();
     let where_clause = generics.where_clause.get_or_insert(parse_quote!(where));
@@ -593,7 +599,7 @@ fn gen_proxy_method_call(
             pub #usage #signature {
                 let object_path: #zbus::zvariant::OwnedObjectPath =
                     self.0.call(
-                        #method_name,
+                        #dbus_member_name,
                         &#zbus::zvariant::DynamicTuple((#(#args,)*)),
                     )
                     #wait?;
@@ -628,7 +634,7 @@ fn gen_proxy_method_call(
                 Ok(quote! {
                     #(#other_attrs)*
                     pub #usage #signature {
-                        self.0.call_with_flags::<_, _, ()>(#method_name, #method_flags, #body)#wait?;
+                        self.0.call_with_flags::<_, _, ()>(#dbus_member_name, #method_flags, #body)#wait?;
                         ::std::result::Result::Ok(())
                     }
                 })
@@ -636,7 +642,7 @@ fn gen_proxy_method_call(
                 Ok(quote! {
                     #(#other_attrs)*
                     pub #usage #signature {
-                        let reply = self.0.call_with_flags(#method_name, #method_flags, #body)#wait?;
+                        let reply = self.0.call_with_flags(#dbus_member_name, #method_flags, #body)#wait?;
 
                         // SAFETY: This unwrap() cannot fail due to the guarantees in
                         // call_with_flags, which can only return Ok(None) if the
@@ -652,7 +658,7 @@ fn gen_proxy_method_call(
             Ok(quote! {
                 #(#other_attrs)*
                 pub #usage #signature {
-                    let reply = self.0.call(#method_name, #body)#wait?;
+                    let reply = self.0.call(#dbus_member_name, #body)#wait?;
                     ::std::result::Result::Ok(reply)
                 }
             })
@@ -662,7 +668,7 @@ fn gen_proxy_method_call(
 
 fn gen_proxy_property(
     property_name: &str,
-    method_name: &str,
+    rust_method_name: &str,
     m: &TraitItemFn,
     async_opts: &AsyncOpts,
     emits_changed_signal: PropertyEmitsChangedSignal,
@@ -717,7 +723,7 @@ fn gen_proxy_property(
         let receive_method = match emits_changed_signal {
             PropertyEmitsChangedSignal::True | PropertyEmitsChangedSignal::Invalidates => {
                 let (_, ty_generics, where_clause) = m.sig.generics.split_for_impl();
-                let receive = format_ident!("receive_{}_changed", method_name);
+                let receive = format_ident!("receive_{}_changed", rust_method_name);
                 let gen_doc = format!(
                     "Create a stream for the `{property_name}` property changes. \
                 This is a convenient wrapper around [`{proxy_name}::receive_property_changed`]."
@@ -743,7 +749,7 @@ fn gen_proxy_property(
             PropertyEmitsChangedSignal::True
             | PropertyEmitsChangedSignal::Invalidates
             | PropertyEmitsChangedSignal::Const => {
-                let cached_getter = format_ident!("cached_{}", method_name);
+                let cached_getter = format_ident!("cached_{}", rust_method_name);
                 let cached_doc = format!(
                     " Get the cached value of the `{property_name}` property, or `None` if the property is not cached.",
                 );
@@ -794,7 +800,7 @@ fn gen_proxy_signal(
     proxy_name: &Ident,
     iface_name: &str,
     signal_name: &str,
-    snake_case_name: &str,
+    rust_method_name: &str,
     method: &TraitItemFn,
     async_opts: &AsyncOpts,
     visibility: &Visibility,
@@ -882,8 +888,8 @@ fn gen_proxy_signal(
             quote! { proxy::SignalStream },
         )
     };
-    let receiver_name = format_ident!("receive_{snake_case_name}");
-    let receiver_with_args_name = format_ident!("receive_{snake_case_name}_with_args");
+    let receiver_name = format_ident!("receive_{rust_method_name}");
+    let receiver_with_args_name = format_ident!("receive_{rust_method_name}_with_args");
     let stream_name = format_ident!("{signal_name}{trait_name}");
     let signal_args = format_ident!("{signal_name}Args");
     let signal_name_ident = format_ident!("{signal_name}");
