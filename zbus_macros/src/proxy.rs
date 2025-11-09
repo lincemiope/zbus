@@ -209,6 +209,9 @@ pub fn create_proxy(
             let property = method_attrs.property.as_ref();
 
             let rust_method_name = m.sig.ident.to_string();
+            let r#_stripped_rust_method_name = rust_method_name
+                .strip_prefix("r#")
+                .unwrap_or(rust_method_name.as_str());
 
             let is_signal = method_attrs.signal;
             let is_property = property.is_some();
@@ -217,10 +220,10 @@ pub fn create_proxy(
             let dbus_member_name = method_attrs.name.clone().unwrap_or_else(|| {
                 case::pascal_or_camel_case(
                     if is_property && has_inputs {
-                        assert!(rust_method_name.starts_with("set_"));
-                        &rust_method_name[4..]
+                        assert!(r#_stripped_rust_method_name.starts_with("set_"));
+                        &r#_stripped_rust_method_name[4..]
                     } else {
-                        &rust_method_name
+                        r#_stripped_rust_method_name
                     },
                     true,
                 )
@@ -241,7 +244,7 @@ pub fn create_proxy(
 
                 gen_proxy_property(
                     &dbus_member_name,
-                    &rust_method_name,
+                    r#_stripped_rust_method_name,
                     m,
                     &async_opts,
                     emits_changed_signal,
@@ -251,7 +254,7 @@ pub fn create_proxy(
                     &proxy_name,
                     &iface_name,
                     &dbus_member_name,
-                    &rust_method_name,
+                    r#_stripped_rust_method_name,
                     m,
                     &async_opts,
                     visibility,
@@ -548,7 +551,8 @@ fn gen_proxy_method_call(
         _ => None,
     };
 
-    let method = Ident::new(rust_method_name, Span::call_site());
+    let mut method = parse_str::<Ident>(rust_method_name)?;
+    method.set_span(Span::call_site());
     let inputs = &m.sig.inputs;
     let mut generics = m.sig.generics.clone();
     let where_clause = generics.where_clause.get_or_insert(parse_quote!(where));

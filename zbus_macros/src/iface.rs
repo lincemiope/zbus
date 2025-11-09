@@ -256,6 +256,8 @@ impl MethodInfo {
             if is_property && has_inputs {
                 assert!(name.starts_with("set_"));
                 name = name[4..].to_string();
+            } else if name.starts_with("r#") {
+                name = name[2..].to_string();
             }
             pascal_case(&name)
         });
