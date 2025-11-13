@@ -65,10 +65,15 @@ pub async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> 
             .find(|&n| n.name().is_some_and(|n| n == name))
             .expect("Child node not exist");
     }
-    assert!(node
+    let my_iface = node
         .interfaces()
         .iter()
-        .any(|i| i.name() == "org.freedesktop.MyIface"));
+        .find(|i| i.name() == "org.freedesktop.MyIface")
+        .unwrap();
+    // Test if the r# prefix for the keyword was removed
+    assert!(my_iface.methods().iter().any(|m| m.name() == "Type"));
+    assert!(my_iface.properties().iter().any(|p| p.name() == "Let"));
+    assert!(my_iface.signals().iter().any(|s| s.name() == "Match"));
 
     let proxy = MyIfaceProxy::builder(&conn)
         .destination("org.freedesktop.MyService")?
@@ -152,6 +157,10 @@ pub async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> 
     proxy.test_no_reply().await?;
     proxy.test_no_autostart().await?;
     proxy.test_interactive_auth().await?;
+
+    assert_eq!(proxy.r#let().await?, 0);
+    proxy.set_let(1).await?;
+    assert_eq!(proxy.r#let().await?, 1);
 
     let err = proxy.fail_property().await;
     assert_eq!(

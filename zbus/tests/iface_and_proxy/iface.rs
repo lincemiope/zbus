@@ -20,6 +20,7 @@ pub struct MyIface {
     emits_changed_invalidates: u32,
     emits_changed_const: u32,
     emits_changed_false: u32,
+    r#let: u32,
 }
 
 impl MyIface {
@@ -32,6 +33,7 @@ impl MyIface {
             emits_changed_invalidates: 0,
             emits_changed_const: 0,
             emits_changed_false: 0,
+            r#let: 0,
         }
     }
 }
@@ -179,6 +181,12 @@ impl MyIface {
             .send(NextAction::DestroyObj(key.into()))
             .await
             .unwrap();
+    }
+
+    #[instrument]
+    async fn r#type(&self) -> zbus::fdo::Result<String> {
+        debug!("`r#type` called.");
+        Ok("r# prefix method works".into())
     }
 
     #[cfg(feature = "option-as-array")]
@@ -363,6 +371,9 @@ impl MyIface {
     #[zbus(signal)]
     pub async fn alert_count(emitter: &SignalEmitter<'_>, val: u32) -> zbus::Result<()>;
 
+    #[zbus(signal)]
+    pub async fn r#match(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
+
     #[instrument]
     #[zbus(property)]
     fn emits_changed_default(&self) -> u32 {
@@ -435,6 +446,21 @@ impl MyIface {
     fn set_emits_changed_false(&mut self, val: u32) -> zbus::fdo::Result<()> {
         debug!("`EmitsChangedFalse` setter called.");
         self.emits_changed_false = val;
+        Ok(())
+    }
+
+    #[instrument]
+    #[zbus(property)]
+    fn r#let(&self) -> u32 {
+        debug!("`Let` getter called.");
+        self.r#let
+    }
+
+    #[instrument]
+    #[zbus(property)]
+    fn set_let(&mut self, val: u32) -> zbus::fdo::Result<()> {
+        debug!("`Let` setter called.");
+        self.r#let = val;
         Ok(())
     }
 
