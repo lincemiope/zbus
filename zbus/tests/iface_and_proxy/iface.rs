@@ -189,6 +189,13 @@ impl MyIface {
         Ok("r# prefix method works".into())
     }
 
+    #[instrument]
+    async fn raw_identifier_parameter(&self, r#type: &str) -> zbus::fdo::Result<String> {
+        debug!("`raw_identifier_parameter` called.");
+        let t = r#type;
+        Ok(format!("type: {t}"))
+    }
+
     #[cfg(feature = "option-as-array")]
     #[instrument]
     async fn optional_args(&self, arg: Option<&str>) -> zbus::fdo::Result<Option<String>> {

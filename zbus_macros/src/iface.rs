@@ -1179,6 +1179,7 @@ fn introspect_input_args<'i>(
 
             let ident = pat_ident(pat_type).unwrap();
             let arg_name = quote!(#ident).to_string();
+            let arg_name = arg_name.strip_prefix("r#").unwrap_or(arg_name.as_str());
             let dir = if is_signal { "" } else { " direction=\"in\"" };
             let format_str = format!(
                 "{}<arg name=\"{arg_name}\" type=\"{}\"{dir}/>",
