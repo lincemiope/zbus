@@ -1,3 +1,5 @@
+#[cfg(unix)]
+mod issue_1003;
 mod issue_1015;
 mod issue_104;
 mod issue_121;

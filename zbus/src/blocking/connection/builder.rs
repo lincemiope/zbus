@@ -92,6 +92,16 @@ impl<'a> Builder<'a> {
         Self(self.0.auth_mechanism(auth_mechanism))
     }
 
+    /// Specify the user id during authentication.
+    ///
+    /// This can be useful when using [`AuthMechanism::External`] with `socat`
+    /// to avoid the host decide what uid to use and instead provide one
+    /// known to have access rights.
+    #[cfg(unix)]
+    pub fn user_id(self, id: u32) -> Self {
+        Self(self.0.user_id(id))
+    }
+
     /// The to-be-created connection will be a peer-to-peer connection.
     ///
     /// This method is only available when the `p2p` feature is enabled.

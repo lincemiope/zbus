@@ -53,8 +53,9 @@ impl Authenticated {
         server_guid: Option<OwnedGuid>,
         mechanism: Option<AuthMechanism>,
         bus: bool,
+        user_id: Option<u32>,
     ) -> Result<Self> {
-        Client::new(socket, mechanism, server_guid, bus)
+        Client::new(socket, mechanism, server_guid, bus, user_id)
             .perform()
             .await
     }
@@ -157,7 +158,7 @@ mod tests {
         let (p0, p1) = create_async_socket_pair();
 
         let guid = OwnedGuid::from(Guid::generate());
-        let client = Client::new(p0.into(), None, Some(guid.clone()), false);
+        let client = Client::new(p0.into(), None, Some(guid.clone()), false, None);
         let server = Server::new(p1.into(), guid, Some(geteuid().as_raw()), None, None).unwrap();
 
         // proceed to the handshakes
