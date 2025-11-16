@@ -74,6 +74,20 @@ pub async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> 
     assert!(my_iface.methods().iter().any(|m| m.name() == "Type"));
     assert!(my_iface.properties().iter().any(|p| p.name() == "Let"));
     assert!(my_iface.signals().iter().any(|s| s.name() == "Match"));
+    assert_eq!(
+        my_iface
+            .methods()
+            .iter()
+            .find(|m| m.name() == "RawIdentifierParameter")
+            .unwrap()
+            .args()
+            .iter()
+            .next()
+            .unwrap()
+            .name()
+            .unwrap(),
+        "type"
+    );
 
     let proxy = MyIfaceProxy::builder(&conn)
         .destination("org.freedesktop.MyService")?
@@ -161,6 +175,11 @@ pub async fn my_iface_test(conn: Connection, event: Event) -> zbus::Result<u32> 
     assert_eq!(proxy.r#let().await?, 0);
     proxy.set_let(1).await?;
     assert_eq!(proxy.r#let().await?, 1);
+
+    assert_eq!(
+        proxy.raw_identifier_parameter("param").await?,
+        "type: param",
+    );
 
     let err = proxy.fail_property().await;
     assert_eq!(
