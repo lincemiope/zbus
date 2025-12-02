@@ -625,6 +625,16 @@ impl Connection {
         W::Error: Into<Error>,
     {
         let well_known_name = well_known_name.try_into().map_err(Into::into)?;
+
+        // Warn if requesting a name before setting up the object server, as this can cause
+        // method calls to be lost.
+        if self.is_bus() && self.inner.object_server.get().is_none() {
+            warn!(
+                "Requesting name `{well_known_name}` before setting up the object server. \
+                Method calls arriving before interfaces are registered may be lost. \
+                Consider using `connection::Builder::serve_at()` and `::name()` instead.",
+            );
+        }
         // We keep the lock until the end of this function so that the (possibly) spawned task
         // doesn't end up accessing the name entry before it's inserted.
         let mut names = self.inner.registered_names.lock().await;
