@@ -26,8 +26,8 @@ impl Peer {
     /// if possible, but this is not always possible to implement and is not guaranteed. It does not
     /// matter which object path a GetMachineId is sent to.
     ///
-    /// Note: Currently only implemented for Linux and Windows. On other platforms (macOS, *BSD),
-    /// this method returns a `NotSupported` error.
+    /// Note: Currently only implemented for Linux, macOS, and Windows. On other Unix platforms
+    /// (*BSD), this method returns a `NotSupported` error.
     fn get_machine_id(&self) -> Result<String> {
         get_machine_id()
     }
@@ -53,8 +53,31 @@ fn get_machine_id() -> Result<String> {
     Ok(id)
 }
 
-// TODO: Use `IOPlatformUUID` via IOKit or `gethostuuid()` on macOS and *BSD.
-#[cfg(all(unix, not(target_os = "linux")))]
+#[cfg(target_os = "macos")]
+fn get_machine_id() -> Result<String> {
+    extern "C" {
+        fn gethostuuid(id: *mut u8, wait: *const libc::timespec) -> libc::c_int;
+    }
+
+    let mut uuid = [0u8; 16];
+    let timeout = libc::timespec {
+        tv_sec: 1,
+        tv_nsec: 0,
+    };
+
+    let ret = unsafe { gethostuuid(uuid.as_mut_ptr(), &timeout) };
+    if ret != 0 {
+        return Err(Error::IOError(format!(
+            "gethostuuid failed: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+
+    Ok(uuid.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+// TODO: Implement for *BSD platforms.
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
 fn get_machine_id() -> Result<String> {
     Err(Error::NotSupported(
         "get_machine_id is not yet implemented on this platform".to_string(),
@@ -80,5 +103,16 @@ mod tests {
                 "machine ID should only contain hex characters"
             );
         }
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn macos_machine_id() {
+        let id = get_machine_id().expect("gethostuuid should succeed on macOS");
+        assert_eq!(id.len(), 32, "machine ID should be 32 hex characters");
+        assert!(
+            id.chars().all(|c| c.is_ascii_hexdigit()),
+            "machine ID should only contain hex characters"
+        );
     }
 }
