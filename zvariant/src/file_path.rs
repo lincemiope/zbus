@@ -69,6 +69,7 @@ impl<'f> From<&'f OsString> for FilePath<'f> {
 
 impl From<OsString> for FilePath<'_> {
     fn from(value: OsString) -> Self {
+        #[allow(deprecated)]
         FilePath(vec_to_cstr(value.as_encoded_bytes().to_vec()))
     }
 }
@@ -141,6 +142,11 @@ impl<'f> From<FilePath<'f>> for PathBuf {
 /// # Returns
 ///
 /// A `Cow<'_, CStr>` containing a *guaranteed* null-terminated string.
+#[doc(hidden)]
+#[deprecated(
+    since = "5.9.0",
+    note = "This function was never meant to be public and will be removed in a future release."
+)]
 pub fn vec_to_cstr(mut bytes: Vec<u8>) -> Cow<'static, CStr> {
     if let Some(pos) = bytes.iter().position(|&b| b == 0) {
         bytes.truncate(pos + 1);
@@ -224,6 +230,10 @@ mod file_path_test {
 
     #[test]
     fn vec_nul_termination() {
+        #[allow(deprecated)]
+        fn call_vec_to_cstr(v: Vec<u8>) -> Cow<'static, CStr> {
+            vec_to_cstr(v)
+        }
         let v1 = vec![];
         let v2 = vec![0x0];
         let v3 = vec![0x1, 0x2, 0x0];
@@ -232,23 +242,23 @@ mod file_path_test {
 
         assert_eq!(
             Cow::Borrowed(CStr::from_bytes_with_nul(&[0x0]).unwrap()),
-            vec_to_cstr(v1)
+            call_vec_to_cstr(v1)
         );
         assert_eq!(
             Cow::Borrowed(CStr::from_bytes_with_nul(&[0x0]).unwrap()),
-            vec_to_cstr(v2)
+            call_vec_to_cstr(v2)
         );
         assert_eq!(
             Cow::Borrowed(CStr::from_bytes_with_nul(&[0x1, 0x2, 0x0]).unwrap()),
-            vec_to_cstr(v3)
+            call_vec_to_cstr(v3)
         );
         assert_eq!(
             Cow::Borrowed(CStr::from_bytes_with_nul(&[0x0]).unwrap()),
-            vec_to_cstr(v4)
+            call_vec_to_cstr(v4)
         );
         assert_eq!(
             Cow::Borrowed(CStr::from_bytes_with_nul(&[0x1, 0x0]).unwrap()),
-            vec_to_cstr(v5)
+            call_vec_to_cstr(v5)
         );
     }
 }
