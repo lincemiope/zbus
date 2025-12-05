@@ -52,7 +52,7 @@ impl Client {
 
     // The dbus daemon on some platforms requires sending the zero byte as a
     // separate message with SCM_CREDS.
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
     async fn send_zero_byte(&mut self) -> Result<()> {
         let write = self.common.socket_mut().write_mut();
@@ -76,7 +76,7 @@ impl Client {
     }
 
     /// Perform the authentication handshake with the server.
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     async fn authenticate(&mut self) -> Result<()> {
         let mechanism = self.common.mechanism();
         trace!("Trying {mechanism} mechanism");
@@ -109,7 +109,7 @@ impl Client {
     }
 
     /// Sends out all commands after authentication.
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     async fn send_secondary_commands(&mut self) -> Result<usize> {
         let mut commands = Vec::with_capacity(4);
 
@@ -148,7 +148,7 @@ impl Client {
         Ok(commands.len() - 1)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     async fn receive_secondary_responses(&mut self, expected_n_responses: usize) -> Result<()> {
         for response in self.common.read_commands(expected_n_responses).await? {
             match response {
@@ -172,7 +172,7 @@ impl Client {
 
 #[async_trait]
 impl Handshake for Client {
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     async fn perform(mut self) -> Result<Authenticated> {
         trace!("Initializing");
 
