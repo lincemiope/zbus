@@ -44,7 +44,7 @@ impl SocketReader {
     }
 
     // Keep receiving messages and put them on the queue.
-    #[instrument(name = "socket reader", skip(self))]
+    #[instrument(name = "socket reader", skip(self), level = "trace")]
     async fn receive_msg(mut self) {
         loop {
             trace!("Waiting for message on the socket..");
@@ -98,7 +98,7 @@ impl SocketReader {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self), level = "trace")]
     async fn read_socket(&mut self) -> crate::Result<Message> {
         self.activity_event.notify(usize::MAX);
         let seq = self.prev_seq + 1;

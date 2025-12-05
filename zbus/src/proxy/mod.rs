@@ -265,7 +265,7 @@ enum CachingResult {
 }
 
 impl PropertiesCache {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, level = "trace")]
     fn new(
         proxy: PropertiesProxy<'static>,
         interface: InterfaceName<'static>,
@@ -390,7 +390,7 @@ impl PropertiesCache {
     }
 
     /// new() runs this in a task it spawns for keeping the cache in sync.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, level = "trace")]
     async fn keep_updated(
         &self,
         mut prop_changes: PropertiesChangedStream,
