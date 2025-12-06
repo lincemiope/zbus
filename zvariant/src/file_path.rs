@@ -41,6 +41,13 @@ impl<'f> FilePath<'f> {
     pub fn new(cow: Cow<'f, CStr>) -> Self {
         Self(cow)
     }
+
+    /// Returns a lossy UTF-8 representation of the file path.
+    ///
+    /// Invalid UTF-8 sequences are replaced with `U+FFFD REPLACEMENT CHARACTER`.
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        self.0.to_string_lossy()
+    }
 }
 
 impl From<CString> for FilePath<'_> {
