@@ -312,6 +312,48 @@ fn test_interface() {
     }
 }
 
+// Test that the `crate` attribute works for custom crate paths.
+mod crate_attr_test {
+    #[zbus_macros::proxy(
+        interface = "org.freedesktop.zbus_macros.CrateAttrTest",
+        default_service = "org.freedesktop.zbus_macros",
+        default_path = "/org/freedesktop/zbus_macros/crate_attr_test",
+        crate = "zbus"
+    )]
+    trait CrateAttrTest {
+        fn test_method(&self) -> zbus::Result<String>;
+    }
+}
+
+#[test]
+fn test_interface_with_crate_attr() {
+    use zbus::object_server::Interface;
+
+    struct CrateAttrInterface;
+
+    #[interface(name = "org.freedesktop.zbus.CrateAttrTest", crate = "zbus")]
+    impl CrateAttrInterface {
+        fn test_method(&self) -> String {
+            "test".to_string()
+        }
+    }
+
+    assert_eq!(
+        CrateAttrInterface::name(),
+        "org.freedesktop.zbus.CrateAttrTest"
+    );
+}
+
+#[test]
+fn derive_error_with_crate_attr() {
+    #[allow(unused)]
+    #[derive(Debug, DBusError)]
+    #[zbus(prefix = "org.freedesktop.zbus.test", crate = "zbus")]
+    enum CrateAttrError {
+        TestError,
+    }
+}
+
 mod signal_from_message {
     use super::*;
     use zbus::message::Message;

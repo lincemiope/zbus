@@ -53,6 +53,8 @@ mod utils;
 ///   attribute nor one of the default values are specified. Please make sure to explicitly set
 ///   either this attribute or the default values, according to your needs.
 ///
+/// * `crate` - specify the path to the `zbus` crate if it's renamed or re-exported.
+///
 /// Each trait method will be expanded to call to the associated D-Bus remote interface.
 ///
 /// Trait methods accept `proxy` attributes:
@@ -115,7 +117,7 @@ mod utils;
 ///
 /// ```no_run
 /// # use std::error::Error;
-/// use zbus_macros::proxy;
+/// use zbus::proxy;
 /// use zbus::{blocking::Connection, Result, fdo, zvariant::Value};
 /// use futures_util::stream::StreamExt;
 /// use async_io::block_on;
@@ -240,6 +242,8 @@ pub fn proxy(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///   (Default: `true`). If your interface is well-known or well-documented, you may want to set
 ///   this to `false` to reduce the the size of your binary and D-Bus traffic.
 ///
+/// * `crate` - specify the path to the `zbus` crate if it's renamed or re-exported.
+///
 /// The methods accepts the `interface` attributes:
 ///
 /// * `name` - override the D-Bus name (pascal case form of the method by default)
@@ -312,7 +316,7 @@ pub fn proxy(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```
 /// # use std::error::Error;
-/// use zbus_macros::interface;
+/// use zbus::interface;
 /// use zbus::{ObjectServer, object_server::SignalEmitter, message::Header};
 ///
 /// struct Example {
@@ -400,10 +404,15 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Each variant (except for the special `zbus` one) can optionally have a (named or unnamed)
 /// `String` field (which is used as the human-readable error description).
 ///
+/// The following type-level attributes are supported:
+///
+/// * `prefix` - the D-Bus error name prefix.
+/// * `crate` - specify the path to the `zbus` crate if it's renamed or re-exported.
+///
 /// # Example
 ///
 /// ```
-/// use zbus_macros::DBusError;
+/// use zbus::DBusError;
 ///
 /// #[derive(DBusError, Debug)]
 /// #[zbus(prefix = "org.myservice.App")]
