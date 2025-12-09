@@ -87,8 +87,9 @@ mod utils;
 /// * `allow_interactive_auth` - declare a method call that is allowed to trigger an interactive
 ///   prompt for authorization or confirmation from the receiver.
 ///
-/// * `object` - methods that returns an [`ObjectPath`] can be annotated with the `object` attribute
-///   to specify the proxy object to be constructed from the returned [`ObjectPath`].
+/// * `object` - methods or properties that return an [`ObjectPath`] can be annotated with the
+///   `object` attribute to specify the proxy object to be constructed from the returned
+///   [`ObjectPath`].
 ///
 /// * `async_object` - if the assumptions made by `object` attribute about naming of the
 ///   asynchronous proxy type, don't fit your bill, you can use this to specify its exact name.
@@ -145,6 +146,10 @@ mod utils;
 ///     // `SomeOtherIfaceProxyBlock` would have been assumed and expected. We could also specify
 ///     // the specific name of the asynchronous proxy types, using the `async_object` attribute.
 ///     fn some_method(&self, arg1: &str);
+///
+///     #[zbus(property, object = "SomeOtherIface", blocking_object = "SomeOtherInterfaceBlock")]
+///     // Properties that return an ObjectPath can also use the `object` attribute.
+///     fn related_object(&self);
 /// }
 ///
 /// #[proxy(

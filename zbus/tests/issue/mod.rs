@@ -15,6 +15,8 @@ mod issue_81;
 mod issue_279;
 #[cfg(all(unix, feature = "tokio"))]
 mod issue_310;
+#[cfg(all(unix, feature = "tokio"))]
+mod issue_356;
 
 #[cfg(all(unix, feature = "p2p"))]
 mod issue_813;
