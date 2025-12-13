@@ -124,3 +124,28 @@ fn issues_1252() {
         val: OwnedValue,
     }
 }
+
+#[test]
+fn derive_with_crate_attr() {
+    // Test that the `crate` attribute works for custom crate paths.
+    // This is useful when zvariant is re-exported or renamed in Cargo.toml.
+    #[derive(Type)]
+    #[zvariant(crate = "zvariant")]
+    struct TestCrateAttr {
+        name: String,
+        value: u32,
+    }
+
+    assert_eq!(TestCrateAttr::SIGNATURE, "(su)");
+
+    // Also test on enums
+    #[repr(u8)]
+    #[derive(Type)]
+    #[zvariant(crate = "zvariant")]
+    enum TestCrateAttrEnum {
+        A = 1,
+        B = 2,
+    }
+
+    assert_eq!(TestCrateAttrEnum::SIGNATURE, "y");
+}

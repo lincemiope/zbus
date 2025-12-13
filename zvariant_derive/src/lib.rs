@@ -162,6 +162,21 @@ mod value;
 /// assert_eq!(decoded, StrEnum::Variant2);
 /// ```
 ///
+/// # Custom crate path
+///
+/// If you've renamed `zvariant` in your `Cargo.toml` or are using it through a re-export,
+/// you can specify the crate path using the `crate` attribute:
+///
+/// ```
+/// use zvariant::Type;
+///
+/// #[derive(Type)]
+/// #[zvariant(crate = "zvariant")]
+/// struct MyStruct {
+///     field: String,
+/// }
+/// ```
+///
 /// [`Type`]: https://docs.rs/zvariant/latest/zvariant/trait.Type.html
 /// [`Serialize`]: https://docs.serde.rs/serde/trait.Serialize.html
 /// [`Deserialize`]: https://docs.serde.rs/serde/de/trait.Deserialize.html
@@ -223,6 +238,21 @@ pub fn type_macro_derive(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
+/// # Custom crate path
+///
+/// If you've renamed `zvariant` in your `Cargo.toml` or are using it through a re-export,
+/// you can specify the crate path using the `crate` attribute:
+///
+/// ```
+/// use zvariant::{SerializeDict, Type};
+///
+/// #[derive(SerializeDict, Type)]
+/// #[zvariant(signature = "a{sv}", crate = "zvariant")]
+/// struct MyStruct {
+///     field: String,
+/// }
+/// ```
+///
 /// [`Serialize`]: https://docs.serde.rs/serde/trait.Serialize.html
 /// [FAQ entry]: https://z-galaxy.github.io/zbus/faq.html#how-to-use-a-struct-as-a-dictionary
 #[proc_macro_derive(SerializeDict, attributes(zbus, zvariant))]
@@ -279,6 +309,21 @@ pub fn serialize_dict_macro_derive(input: TokenStream) -> TokenStream {
 ///     field1: Option<u32>,
 ///     #[serde(with = "as_value")]
 ///     field2: String,
+/// }
+/// ```
+///
+/// # Custom crate path
+///
+/// If you've renamed `zvariant` in your `Cargo.toml` or are using it through a re-export,
+/// you can specify the crate path using the `crate` attribute:
+///
+/// ```
+/// use zvariant::{DeserializeDict, Type};
+///
+/// #[derive(DeserializeDict, Type)]
+/// #[zvariant(signature = "a{sv}", crate = "zvariant")]
+/// struct MyStruct {
+///     field: String,
 /// }
 /// ```
 ///
@@ -465,6 +510,21 @@ pub fn deserialize_dict_macro_derive(input: TokenStream) -> TokenStream {
 /// For treating your type as a dictionary, you can use the `signature = "dict"` attribute. See
 /// [`Type`] for more details and an example use. Please note that this macro can only handle
 /// `dict` or `a{sv}` values. All other values will be ignored.
+///
+/// # Custom crate path
+///
+/// If you've renamed `zvariant` in your `Cargo.toml` or are using it through a re-export,
+/// you can specify the crate path using the `crate` attribute:
+///
+/// ```
+/// use zvariant::Value;
+///
+/// #[derive(Clone, Value)]
+/// #[zvariant(crate = "zvariant")]
+/// struct MyStruct {
+///     field: String,
+/// }
+/// ```
 ///
 /// [`Value`]: https://docs.rs/zvariant/latest/zvariant/enum.Value.html
 /// [`Type`]: crate::Type#custom-signatures
