@@ -1511,7 +1511,7 @@ impl Proxy {
         let member_name = method_info.member_name;
         let mut proxy_method_attrs = quote! { name = #member_name, };
         proxy_method_attrs.extend(match method_info.method_type {
-            MethodType::Signal => quote!(signal),
+            MethodType::Signal => quote!(signal,),
             MethodType::Property(_) => {
                 let emits_changed_signal = properties
                     .get(&member_name)
@@ -1520,7 +1520,7 @@ impl Proxy {
                     .to_string();
                 let emits_changed_signal = quote! { emits_changed_signal = #emits_changed_signal };
 
-                quote! { property(#emits_changed_signal) }
+                quote! { property(#emits_changed_signal), }
             }
             MethodType::Other => quote!(),
         });

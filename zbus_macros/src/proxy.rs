@@ -246,6 +246,7 @@ pub fn create_proxy(
                     &dbus_member_name,
                     r#_stripped_rust_method_name,
                     m,
+                    &method_attrs,
                     &async_opts,
                     emits_changed_signal,
                 )
@@ -674,6 +675,7 @@ fn gen_proxy_property(
     property_name: &str,
     rust_method_name: &str,
     m: &TraitItemFn,
+    method_attrs: &MethodAttributes,
     async_opts: &AsyncOpts,
     emits_changed_signal: PropertyEmitsChangedSignal,
 ) -> TokenStream {
@@ -699,6 +701,23 @@ fn gen_proxy_property(
             }
         }
     } else {
+        // Check for object attribute to return a proxy instead of OwnedObjectPath
+        let proxy_object = method_attrs.object.as_ref().map(|o| {
+            if *blocking {
+                method_attrs
+                    .blocking_object
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| format!("{o}ProxyBlocking"))
+            } else {
+                method_attrs
+                    .async_object
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| format!("{o}Proxy"))
+            }
+        });
+
         // This should fail to compile only if the return type is wrong,
         // so use that as the span.
         let body_span = if let ReturnType::Type(_, ty) = &signature.output {
@@ -706,13 +725,36 @@ fn gen_proxy_property(
         } else {
             signature.span()
         };
-        let body = quote_spanned! {body_span =>
-            ::std::result::Result::Ok(self.0.get_property(#property_name)#wait?)
-        };
+
         let ret_type = if let ReturnType::Type(_, ty) = &signature.output {
             Some(ty)
         } else {
             None
+        };
+
+        // Generate the getter body - either returning a proxy object or the raw property value
+        let (body, custom_signature) = if let Some(proxy_path_str) = proxy_object {
+            let proxy_path: Path = parse_str(&proxy_path_str).unwrap();
+            let method_name = Ident::new(rust_method_name, m.sig.ident.span());
+            let inputs = &signature.inputs;
+            let custom_sig = quote! {
+                fn #method_name(#inputs) -> #zbus::Result<#proxy_path<'p>>
+            };
+            let body = quote_spanned! {body_span =>
+                let object_path: #zbus::zvariant::OwnedObjectPath =
+                    self.0.get_property(#property_name)#wait?;
+                #proxy_path::builder(&self.0.connection())
+                    .destination(self.0.destination().to_owned())?
+                    .path(object_path)?
+                    .build()
+                    #wait
+            };
+            (body, Some(custom_sig))
+        } else {
+            let body = quote_spanned! {body_span =>
+                ::std::result::Result::Ok(self.0.get_property(#property_name)#wait?)
+            };
+            (body, None)
         };
 
         let (proxy_name, prop_stream) = if *blocking {
@@ -771,16 +813,28 @@ fn gen_proxy_property(
             PropertyEmitsChangedSignal::False => quote! {},
         };
 
+        // When object attribute is used, we use a custom signature and skip cached/receive methods
+        // since those don't make sense for proxy objects
+        let (sig, extra_methods) = if let Some(sig) = custom_signature {
+            (sig, quote! {})
+        } else {
+            (
+                quote! { #signature },
+                quote! {
+                    #cached_getter_method
+                    #receive_method
+                },
+            )
+        };
+
         quote! {
             #(#other_attrs)*
             #[allow(clippy::needless_question_mark)]
-            pub #usage #signature {
+            pub #usage #sig {
                 #body
             }
 
-            #cached_getter_method
-
-            #receive_method
+            #extra_methods
         }
     }
 }
