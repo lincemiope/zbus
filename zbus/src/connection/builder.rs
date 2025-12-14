@@ -84,6 +84,7 @@ pub struct Builder<'a> {
     unique_name: Option<crate::names::UniqueName<'a>>,
     request_name_flags: BitFlags<RequestNameFlags>,
     method_timeout: Option<std::time::Duration>,
+    user_id: Option<u32>,
 }
 
 impl<'a> Builder<'a> {
@@ -199,6 +200,18 @@ impl<'a> Builder<'a> {
     /// Specify the mechanism to use during authentication.
     pub fn auth_mechanism(mut self, auth_mechanism: AuthMechanism) -> Self {
         self.auth_mechanism = Some(auth_mechanism);
+
+        self
+    }
+
+    /// Specify the user id during authentication.
+    ///
+    /// This can be useful when using [`AuthMechanism::External`] with `socat`
+    /// to avoid the host decide what uid to use and instead provide one
+    /// known to have access rights.
+    #[cfg(unix)]
+    pub fn user_id(mut self, id: u32) -> Self {
+        self.user_id = Some(id);
 
         self
     }
@@ -455,6 +468,7 @@ impl<'a> Builder<'a> {
             unique_name: None,
             request_name_flags: BitFlags::default(),
             method_timeout: None,
+            user_id: None,
         }
     }
 
@@ -485,8 +499,14 @@ impl<'a> Builder<'a> {
             match self.guid.take() {
                 None => {
                     // SASL Handshake
-                    Authenticated::client(stream, server_guid, self.auth_mechanism, is_bus_conn)
-                        .await
+                    Authenticated::client(
+                        stream,
+                        server_guid,
+                        self.auth_mechanism,
+                        is_bus_conn,
+                        self.user_id,
+                    )
+                    .await
                 }
                 Some(guid) => {
                     if !self.p2p {
@@ -495,7 +515,7 @@ impl<'a> Builder<'a> {
 
                     let creds = stream.read_mut().peer_credentials().await?;
                     #[cfg(unix)]
-                    let client_uid = creds.unix_user_id();
+                    let client_uid = self.user_id.or_else(|| creds.unix_user_id());
                     #[cfg(windows)]
                     let client_sid = creds.into_windows_sid();
 
@@ -514,7 +534,14 @@ impl<'a> Builder<'a> {
             }
 
             #[cfg(not(feature = "p2p"))]
-            Authenticated::client(stream, server_guid, self.auth_mechanism, is_bus_conn).await
+            Authenticated::client(
+                stream,
+                server_guid,
+                self.auth_mechanism,
+                is_bus_conn,
+                self.user_id,
+            )
+            .await
         }
     }
 
